@@ -189,7 +189,7 @@ def compute_features(dataloader, model, N, device, args):
     ecnames = []
     with torch.no_grad():
          for i, (input_tensor, label, center_location, ecname) in enumerate(dataloader):
-            print(i)
+            # print(i)
             copy_input = copy.copy(input_tensor)
             input_tensors.append(copy_input)
             labels.append(label)
@@ -227,8 +227,6 @@ def compute_features(dataloader, model, N, device, args):
          ecnames = np.concatenate(ecnames, axis=0)
          input_tensors = np.concatenate(input_tensors, axis=0)
          return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors
-
-args = parse_args()
 
 def main(args):
     # fix random seeds
@@ -463,9 +461,6 @@ def main(args):
         cluster_log.log(deepcluster.images_lists)
 
 
-
-# if __name__ == '__main__':
-#     args = parse_args()
-#     main(args)
-#
-# args = parse_args()
+if __name__ == '__main__':
+    args = parse_args()
+    main(args)

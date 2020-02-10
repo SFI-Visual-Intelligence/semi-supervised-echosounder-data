@@ -1,0 +1,23 @@
+kind: Job
+apiVersion: batch/v1
+
+metadata:
+  name: deepcluster-unsup
+
+spec:
+  template:
+    spec:
+      containers:
+      - name: deepcluster-unsup
+        image: "basscoma/deepclustering:gpu0.1"
+        workingDir: /storage/deepcluster
+        command: ["python", "main_echogram.py"]
+        volumeMounts:
+        - name: storage
+          mountPath: /storage
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: storage
+      restartPolicy: OnFailure
+  backoffLimit: 0
