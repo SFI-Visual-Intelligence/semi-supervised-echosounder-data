@@ -51,9 +51,10 @@ class ReassignedDataset(data.Dataset):
         label_to_idx = {label: idx for idx, label in enumerate(set(pseudolabels))}
         images = []
         for j, idx in enumerate(image_indexes):
-            path = dataset[idx][0]
+            img = dataset[idx]
+            # path = dataset[idx][0]
             pseudolabel = label_to_idx[pseudolabels[j]]
-            images.append((path, pseudolabel))
+            images.append((img, pseudolabel))
         return images
 
     def __getitem__(self, index):
@@ -63,10 +64,11 @@ class ReassignedDataset(data.Dataset):
         Returns:
             tuple: (image, pseudolabel) where pseudolabel is the cluster of index datapoint
         """
-        path, pseudolabel = self.imgs[index]
-        img = pil_loader(path)
-        if self.transform is not None:
-            img = self.transform(img)
+        img, pseudolabel = self.imgs[index]
+        # path, pseudolabel = self.imgs[index]
+        # img = pil_loader(path)
+        # if self.transform is not None:
+        #     img = self.transform(img)
         return img, pseudolabel
 
     def __len__(self):
@@ -137,15 +139,15 @@ def cluster_assign(images_lists, dataset):
         image_indexes.extend(images)
         pseudolabels.extend([cluster] * len(images))
 
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-    t = transforms.Compose([transforms.RandomResizedCrop(224),
-                            transforms.RandomHorizontalFlip(),
-                            transforms.ToTensor(),
-                            normalize])
+    # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+    #                                 std=[0.229, 0.224, 0.225])
+    # t = transforms.Compose([transforms.RandomResizedCrop(224),
+    #                         transforms.RandomHorizontalFlip(),
+    #                         transforms.ToTensor(),
+    #                         normalize])
 
-    return ReassignedDataset(image_indexes, pseudolabels, dataset, t)
-
+    return ReassignedDataset(image_indexes, pseudolabels, dataset, None)
+    # return ReassignedDataset(image_indexes, pseudolabels, dataset, t)
 
 def run_kmeans(x, nmb_clusters, verbose=False):
     """Runs kmeans on 1 GPU.
@@ -205,7 +207,7 @@ class Kmeans(object):
         end = time.time()
 
         # PCA-reducing, whitening and L2-normalization
-        xb = preprocess_features(data)
+        xb = preprocess_features(data, pca=64)
 
         # cluster the data
         I, loss = run_kmeans(xb, self.k, verbose)

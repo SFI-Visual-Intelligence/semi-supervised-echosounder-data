@@ -9,7 +9,7 @@ import torch.nn as nn
 import math
 from random import random as rd
 
-__all__ = [ 'VGG', 'vgg16']
+__all__ = [ 'VGG', 'vgg16', 'vgg16_tweak']
 
 
 class VGG(nn.Module):
@@ -18,16 +18,22 @@ class VGG(nn.Module):
         super(VGG, self).__init__()
         self.features = features
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 7 * 7, 4096),
+            # nn.Linear(512 * 7 * 7, 4096),
+            # nn.ReLU(True),
+            # nn.Dropout(0.5),
+            # nn.Linear(4096, 4096),
+            # nn.ReLU(True)
+            nn.Linear(512, 256),
             nn.ReLU(True),
             nn.Dropout(0.5),
-            nn.Linear(4096, 4096),
+            nn.Linear(256, 128),
             nn.ReLU(True)
         )
-        self.top_layer = nn.Linear(4096, num_classes)
+        self.top_layer = nn.Linear(50, num_classes)
         self._initialize_weights()
         if sobel:
-            grayscale = nn.Conv2d(3, 1, kernel_size=1, stride=1, padding=0)
+            # grayscale = nn.Conv2d(3, 1, kernel_size=1, stride=1, padding=0)
+            grayscale = nn.Conv2d(4, 1, kernel_size=1, stride=1, padding=0)
             grayscale.weight.data.fill_(1.0 / 3.0)
             grayscale.bias.data.zero_()
             sobel_filter = nn.Conv2d(1, 2, kernel_size=3, stride=1, padding=1)
@@ -90,5 +96,10 @@ def make_layers(input_dim, batch_norm):
 
 def vgg16(sobel=False, bn=True, out=1000):
     dim = 2 + int(not sobel)
+    model = VGG(make_layers(dim, bn), out, sobel)
+    return model
+
+def vgg16_tweak(sobel=False, bn=True, out=6):
+    dim = 4
     model = VGG(make_layers(dim, bn), out, sobel)
     return model

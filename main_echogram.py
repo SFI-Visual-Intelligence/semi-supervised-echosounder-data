@@ -408,9 +408,8 @@ def main(args):
         # assign pseudo-labels
         if args.verbose:
             print('Assign pseudo labels')
-        initial_patches = tuple(input_tensors, labels)
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-                                                  initial_patches)
+                                                  input_tensors)
 
         # uniformly sample per target
         sampler = UnifLabelSampler(int(args.reassign * len(train_dataset)),
