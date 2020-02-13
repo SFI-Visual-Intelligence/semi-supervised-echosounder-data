@@ -177,7 +177,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if args.verbose and (i % 20) == 0:
+        if args.verbose and (i % 10) == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
@@ -282,7 +282,7 @@ def compute_features(dataloader, model, N, device, args):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if args.verbose and (i % 200) == 0:
+            if args.verbose and (i % 10) == 0:
                 print('{0} / {1}\t'
                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
                       .format(i, len(dataloader), batch_time=batch_time))
@@ -291,7 +291,7 @@ def compute_features(dataloader, model, N, device, args):
             labels.append(label.data.cpu().numpy())
             center_location_heights.append(center_location[0].data.cpu().numpy())
             center_location_widths.append(center_location[1].data.cpu().numpy())
-            ecnames.append(ecname.data.cpu().numpy())
+            ecnames.append(ecname)
             labelmaps.append(labelmap.data.cpu().numpy())
 
          labels = np.concatenate(labels, axis=0)
@@ -444,7 +444,7 @@ def main(args):
             = compute_features(dataloader_train, model, len(dataset_train), device=device, args=args)
 
         # save patches per epoch
-        if epoch % 10 == 0:
+        if (epoch !=0) and (epoch+1 % 10 == 0):
             cp_epoch_out = [input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
             with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
@@ -490,7 +490,7 @@ def main(args):
         # loss = train(train_dataloader, model, criterion_tr, optimizer, epoch, device=device, args=args)
         # val_loss = validation(dataloader_val, model, criterion_val, epoch, device=device, args=args)
 
-        if epoch % 10 == 0:
+        if (epoch !=0) and (epoch+1 % 10 == 0):
             with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(tr_epoch_out, f)
             with open("./val_epoch_%d.pickle" % epoch, "wb") as f:
