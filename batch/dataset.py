@@ -41,23 +41,20 @@ class Dataset():
     def __getitem__(self, index):
         #Select which sampler to use
         i = np.random.rand()
-
-        target_onehot = np.zeros(len(self.samplers))
         sample_idx = np.where(i < self.sampler_probs)[0][0]
-        target_onehot[sample_idx] = 1
-
         sampler = self.samplers[sample_idx]
 
         #Draw coordinate and echogram with sampler
         center_location, echogram = sampler.get_sample()
 
         # Adjust coordinate by random shift in y and x direction
-        center_location[0] += np.random.randint(-self.window_size[0]//2, self.window_size[0]//2 + 1)
-        center_location[1] += np.random.randint(-self.window_size[1]//2, self.window_size[1]//2 + 1)
+        # center_location[0] += np.random.randint(-self.window_size[0]//2, self.window_size[0]//2 + 1)
+        # center_location[1] += np.random.randint(-self.window_size[1]//2, self.window_size[1]//2 + 1)
+        # center_location[0] += np.random.randint(-self.window_size[0]//4, self.window_size[0]//4 + 1)
+        # center_location[1] += np.random.randint(-self.window_size[1]//4, self.window_size[1]//4 + 1)
 
         #Get data/labels-patches
         data, labels = get_crop(echogram, center_location, self.window_size, self.frequencies)
-
 
         # Apply augmentation
         if self.augmentation_function is not None:
@@ -72,7 +69,7 @@ class Dataset():
             data, labels, echogram, frequencies = self.data_transform_function(data, labels, echogram, self.frequencies)
 
         labels = labels.astype('int16')
-        return data, target_onehot, center_location, echogram.name
+        return data, sample_idx, center_location, echogram.name, labels
         # return data, labels, center_location, echogram.name
         # return data, labels
 
@@ -103,6 +100,7 @@ def get_crop(echogram, center_location, window_size, freqs):
         channels.append(np.expand_dims(data, 0))
     channels = np.concatenate(channels, 0)
 
+    # labels = nearest_interpolation(echogram.label_memmap(), grid, boundary_val=-100, out_shape=window_size)
     labels = nearest_interpolation(echogram.label_memmap(), grid, boundary_val=-100, out_shape=window_size)
 
     return channels, labels

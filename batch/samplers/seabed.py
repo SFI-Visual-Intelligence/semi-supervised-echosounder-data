@@ -21,9 +21,11 @@ class Seabed():
 
         #Random x-loc
         x = np.random.randint(self.window_size[1]//2, self.echograms[ei].shape[1] - (self.window_size[1]//2))
-        y = self.echograms[ei].get_seabed()[x] + np.random.randint(-self.window_size[0]//2, self.window_size[0]//2)
+
+        # y = self.echograms[ei].get_seabed()[x] + np.random.randint(-self.window_size[0]//2, self.window_size[0]//2)
+        # y = self.echograms[ei].get_seabed()[x] + np.random.randint(-self.window_size[0]//2, self.window_size[0]//2)
         # y = self.echograms[ei].get_seabed()[x] + np.random.randint(-self.window_size[0], self.window_size[0])
-        # y = self.echograms[ei].get_seabed()[x]
+        y = self.echograms[ei].get_seabed()[x]
 
         # Correct y if window is not inside echogram
         if y < self.window_size[0]//2:

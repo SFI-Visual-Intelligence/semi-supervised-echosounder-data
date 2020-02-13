@@ -207,7 +207,7 @@ class Kmeans(object):
         end = time.time()
 
         # PCA-reducing, whitening and L2-normalization
-        xb = preprocess_features(data, pca=64)
+        xb = preprocess_features(data, pca=16)
 
         # cluster the data
         I, loss = run_kmeans(xb, self.k, verbose)

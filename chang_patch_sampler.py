@@ -35,9 +35,9 @@ def partition_data(echograms, partition='year', portion_train_test=0.8, portion_
         train = list(filter(lambda x: any([year in x.name for year in
                                            ['D2014','D2015']]), echograms))
         val = list(filter(lambda x: any([year in x.name for year in
-                                         ['D2016']]), echograms))
+                                         ['D2016', 'D2017']]), echograms))
         test = list(filter(lambda x: any([year in x.name for year in
-                                          ['D2017']]), echograms))
+                                          ['D2013', 'D2018']]), echograms))
     else:
         print("Parameter 'partition' must equal 'random' or 'year'")
 

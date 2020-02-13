@@ -23,7 +23,7 @@ class Background():
         #Random x,y-loc above seabed
         x = np.random.randint(self.window_size[1]//2, self.echograms[ei].shape[1] - self.window_size[1]//2)
         # y = np.random.randint(0, self.echograms[ei].get_seabed()[x])
-        y = np.random.randint(0, int(0.85 * self.echograms[ei].get_seabed()[x]))
+        y = np.random.randint(0, int(0.8 * self.echograms[ei].get_seabed()[x]))
 
         #Check if there is any fish-labels in crop
         grid = getGrid(self.window_size) + np.expand_dims(np.expand_dims([y,x], 1), 1)
