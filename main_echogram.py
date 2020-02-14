@@ -7,6 +7,7 @@
 import argparse
 import os
 import pickle
+# import sys
 import time
 import copy
 import faiss
@@ -21,7 +22,6 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-
 import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
@@ -30,6 +30,7 @@ from batch.augmentation.flip_x_axis import flip_x_axis
 from batch.augmentation.add_noise import add_noise
 from data.echogram import get_echograms
 from batch.dataset import Dataset
+from batch.dataset import DatasetVal
 from batch.dataset_sampler import DatasetSingleSampler
 from batch.samplers.background import Background
 from batch.samplers.seabed import Seabed
@@ -41,19 +42,29 @@ from batch.label_transform_functions.index_0_1_27 import index_0_1_27
 from batch.label_transform_functions.relabel_with_threshold_morph_close import relabel_with_threshold_morph_close
 from batch.combine_functions import CombineFunctions
 import chang_patch_sampler as cps
+from scipy.optimize import linear_sum_assignment
 
-def fig_patches(dataset_train):
-    import matplotlib.pyplot as plt
-    imgs, label, coord, ecname, labelmap = dataset_train[0]
-    plt.figure(figsize=(30, 30))
-    fig, ((ax1, _1, ax2), (_2, ax5, _3), (ax3, _4, ax4)) = plt.subplots(3, 3)
-    fig.suptitle('label: %d, coord: %s, ename: %s' % (label, coord, ecname))
-    ax1.imshow(imgs[0])
-    ax2.imshow(imgs[1])
-    ax3.imshow(imgs[2])
-    ax4.imshow(imgs[3])
-    ax5.imshow(labelmap)
-    plt.savefig('./test_pics/label_%d_coord_%s_ename_%s.jpg' % (label, coord, ecname))
+# def fig_patches(dataset_train):
+#     import matplotlib.pyplot as plt
+#     imgs, label, coord, ecname, labelmap = dataset_train[0]
+#     plt.figure(figsize=(30, 30))
+#     fig, ((ax1, _1, ax2), (_2, ax5, _3), (ax3, _4, ax4)) = plt.subplots(3, 3)
+#     fig.suptitle('label: %d, coord: %s, ename: %s' % (label, coord, ecname))
+#     ax1.imshow(imgs[0])
+#     ax2.imshow(imgs[1])
+#     ax3.imshow(imgs[2])
+#     ax4.imshow(imgs[3])
+#     ax5.imshow(labelmap)
+#     plt.savefig('./test_pics/label_%d_coord_%s_ename_%s.jpg' % (label, coord, ecname))
+
+def cluster_acc(Y_pred, Y):
+    assert Y_pred.size == Y.size
+    D = max(Y_pred.max(), Y.max())+1
+    w = np.zeros((D,D), dtype=np.int64)
+    for i in range(Y_pred.size):
+        w[Y_pred[i], Y[i]] += 1
+    ind = linear_sum_assignment(w.max() - w)
+    return sum([w[i,j] for i,j in zip(ind[0], ind[1])])*1.0/Y_pred.size, w
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
@@ -66,8 +77,10 @@ def parse_args():
     parser.add_argument('--sobel', action='store_true', help='Sobel filtering')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=4,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=6,
                         help='number of cluster for k-means (default: 10000)')
+    parser.add_argument('--nmb_class', type=int, default=6,
+                        help='number of classes of the top layer (default: 6)')
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
@@ -77,19 +90,22 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=40,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+    # parser.add_argument('--resume', default='', type=str, metavar='PATH',
+    #                     help='path to checkpoint (default: None)')
+    parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
-    parser.add_argument('--checkpoints', type=int, default=25000,
+    parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
-    parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+    # parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
     # parser.add_argument('--verbose', action='store_true', help='chatty')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
@@ -103,7 +119,7 @@ def parse_args():
     parser.add_argument('--iteration_val', type=int, default=50,
                         help='num_val_iterations per one batch and  epoch')
     parser.add_argument('--sampler_probs', type=list, default=None,
-                        help='[bg, sb, sh27, sbsh27, sh01, sbsh01], default=[2, 2, 1, 1, 1, 1]')
+                        help='[bg, sb, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1, 1]')
     # parser.add_argument('--iteration_test', type=int, default=100,
     #                     help='num_te_iterations per epoch')
     return parser.parse_args()
@@ -215,9 +231,8 @@ def validation(loader, model, crit, epoch, device, args):
     targets = []
     outputs = []
     with torch.no_grad():
-        for i, (input_tensor, target, _ , _, _) in enumerate(loader):
+        for i, (input_tensor, target) in enumerate(loader):
             data_time.update(time.time() - end)
-            input_tensor.double()
             input_var = torch.autograd.Variable(input_tensor.to(device))
             target_var = torch.autograd.Variable(target.to(device,  non_blocking=True))
 
@@ -226,7 +241,6 @@ def validation(loader, model, crit, epoch, device, args):
 
             # record loss
             val_losses.update(val_loss.item(), input_tensor.size(0))
-            val_losses_copy = copy.copy(val_losses)
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
@@ -235,7 +249,7 @@ def validation(loader, model, crit, epoch, device, args):
                 print('Epoch: [{0}][{1}/{2}]\t\t'
                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'Val_Loss: {val_loss.val:.4f} ({val_loss.avg:.4f})'
-                      .format(epoch, i, len(loader), batch_time=batch_time, val_loss=val_losses_copy))
+                      .format(epoch, i, len(loader), batch_time=batch_time, val_loss=val_losses))
 
             input_tensors.append(input_tensor.data.cpu().numpy())
             targets.append(target.data.cpu().numpy())
@@ -245,7 +259,6 @@ def validation(loader, model, crit, epoch, device, args):
         outputs = np.concatenate(outputs, axis=0)
         val_epoch_out = [input_tensors, targets, outputs]
         return val_losses.avg, val_epoch_out
-        # return val_losses.avg
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -316,7 +329,7 @@ def main(args):
     if args.verbose:
         print('Architecture: {}'.format(args.arch))
 
-    model = models.__dict__[args.arch](sobel=False, bn=True, out=6)
+    model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_class)
     fd = int(model.top_layer.weight.size()[1])
     model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
@@ -332,8 +345,7 @@ def main(args):
         weight_decay=10**args.wd,
     )
 
-    criterion_tr = nn.CrossEntropyLoss()
-    criterion_val = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -342,9 +354,11 @@ def main(args):
             checkpoint = torch.load(args.resume)
             args.start_epoch = checkpoint['epoch']
             # remove top_layer parameters from checkpoint
-            for key in checkpoint['state_dict']:
+            copy_checkpoint_state_dict = checkpoint['state_dict'].copy()
+            for key in list(copy_checkpoint_state_dict):
                 if 'top_layer' in key:
-                    del checkpoint['state_dict'][key]
+                    del copy_checkpoint_state_dict[key]
+            checkpoint['state_dict'] = copy_checkpoint_state_dict
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             print("=> loaded checkpoint '{}' (epoch {})"
@@ -358,7 +372,7 @@ def main(args):
         os.makedirs(exp_check)
 
     # creating cluster assignments log
-    cluster_log = Logger(os.path.join(args.exp, 'clusters'))
+    cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
 
     # load dataset
     end = time.time()
@@ -402,12 +416,11 @@ def main(args):
         label_transform_function=label_transform,
         data_transform_function=data_transform)
 
-    dataset_val = Dataset(
+    dataset_val_temp = DatasetVal(
         samplers_val,
         window_size,
         args.frequencies,
         args.batch * args.iteration_val,
-        None,
         augmentation_function=None,
         label_transform_function=label_transform,
         data_transform_function=data_transform)
@@ -415,13 +428,7 @@ def main(args):
     if args.verbose:
         print('Load dataset: {0:.2f} s'.format(time.time() - end))
 
-    dataloader_train = torch.utils.data.DataLoader(dataset_train,
-                                             shuffle=False,
-                                             batch_size=args.batch,
-                                             num_workers=args.workers,
-                                             pin_memory=True)
-
-    dataloader_val = torch.utils.data.DataLoader(dataset_val,
+    dataloader_cp = torch.utils.data.DataLoader(dataset_train,
                                              shuffle=False,
                                              batch_size=args.batch,
                                              num_workers=args.workers,
@@ -441,14 +448,15 @@ def main(args):
 
         # get the features for the whole dataset
         features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
-            = compute_features(dataloader_train, model, len(dataset_train), device=device, args=args)
+            = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
 
         # save patches per epoch
-        if (epoch !=0) and (epoch+1 % 10 == 0):
+        if ((epoch+1) % 5 == 0):
             cp_epoch_out = [input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
             with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
 
+        # cluster the features
         # cluster the features
         if args.verbose:
             print('Cluster the features')
@@ -461,14 +469,14 @@ def main(args):
                                                   input_tensors_train)
 
         # uniformly sample per target
-        sampler = UnifLabelSampler(int(args.reassign * len(train_dataset)),
+        sampler_train = UnifLabelSampler(int(len(train_dataset)),
                                    deepcluster.images_lists)
 
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=args.batch,
             num_workers=args.workers,
-            sampler=sampler,
+            sampler=sampler_train,
             pin_memory=True,
         )
 
@@ -476,7 +484,7 @@ def main(args):
         mlp = list(model.classifier.children())
         mlp.append(nn.ReLU(inplace=True).to(device))
         model.classifier = nn.Sequential(*mlp)
-        model.top_layer = nn.Linear(fd, len(deepcluster.images_lists))
+        model.top_layer = nn.Linear(fd, args.nmb_class)
         model.top_layer.weight.data.normal_(0, 0.01)
         model.top_layer.bias.data.zero_()
         model.top_layer = model.top_layer.double()
@@ -485,25 +493,61 @@ def main(args):
         # train network with clusters as pseudo-labels
 
         end = time.time()
-        loss, tr_epoch_out = train(train_dataloader, model, criterion_tr, optimizer, epoch, device=device, args=args)
-        val_loss, val_epoch_out = validation(dataloader_val, model, criterion_val, epoch, device=device, args=args)
-        # loss = train(train_dataloader, model, criterion_tr, optimizer, epoch, device=device, args=args)
-        # val_loss = validation(dataloader_val, model, criterion_val, epoch, device=device, args=args)
+        loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
 
-        if (epoch !=0) and (epoch+1 % 10 == 0):
-            with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
-                pickle.dump(tr_epoch_out, f)
-            with open("./val_epoch_%d.pickle" % epoch, "wb") as f:
-                pickle.dump(val_epoch_out, f)
+
+        ###############################################################
+        print('Extract validation samples')
+        input_tensors_val = []
+        labels_val = []
+        for i in range(args.batch * args.iteration_val):
+            input_tensor_val, label_val = dataset_val_temp[i]
+            input_tensors_val.append(input_tensor_val)
+            labels_val.append(label_val)
+
+        val_images_lists = [[] for i in range(args.nmb_cluster)]
+        for idx, label in enumerate(labels_val):
+            val_images_lists[label].append(idx)
+
+        val_dataset = clustering.cluster_assign(val_images_lists,
+                                                  input_tensors_val)
+        # uniformly sample per target
+        sampler_val = UnifLabelSampler(int(len(val_dataset)),
+                                         val_images_lists)
+
+        val_dataloader = torch.utils.data.DataLoader(
+            val_dataset,
+            batch_size=args.batch,
+            num_workers=args.workers,
+            sampler=sampler_val,
+            pin_memory=True,
+        )
+
+        val_loss, val_epoch_out = validation(val_dataloader, model, criterion, epoch, device=device, args=args)
+        ###############################################################
+
+        # if ((epoch+1) % 1 == 0):
+        with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
+            pickle.dump(tr_epoch_out, f)
+        with open("./val_epoch_%d.pickle" % epoch, "wb") as f:
+            pickle.dump(val_epoch_out, f)
+
+        # Accuracy with training set (output vs. pseudo label)
+        accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
+        # Accuracy with validaton set (output vs. true label + Hunagarian)
+        accuracy_val, w = cluster_acc(np.argmax(val_epoch_out[2], axis=1), val_epoch_out[1])
 
         # print log
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
                   'Clustering loss: {2:.3f} \n'
-                  'ConvNet loss: {3:.3f} \n'
-                  'ConvNet val_loss: {3:.3f}'
-                  .format(epoch, time.time() - end, clustering_loss, loss, val_loss))
+                  'ConvNet tr_loss: {3:.3f} \n'
+                  'ConvNet val_loss: {4:.3f} \n'
+                  'ConvNet tr_acc: {5:.3f} \n'
+                  'ConvNet val_acc: {6:.3f} \n'
+                  .format(epoch, time.time() - end, clustering_loss, loss,val_loss, accuracy_tr, accuracy_val))
+
             try:
                 nmi = normalized_mutual_info_score(
                     clustering.arrange_clustering(deepcluster.images_lists),
@@ -522,7 +566,6 @@ def main(args):
 
         # save cluster assignments
         cluster_log.log(deepcluster.images_lists)
-
 
 if __name__ == '__main__':
     args = parse_args()

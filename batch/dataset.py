@@ -76,6 +76,70 @@ class Dataset():
     def __len__(self):
         return self.n_samples
 
+class DatasetVal():
+
+    def __init__(self, samplers, window_size, frequencies,
+                 n_samples = 1000,
+                 augmentation_function=None,
+                 label_transform_function=None,
+                 data_transform_function=None):
+        """
+        A dataset is used to draw random samples
+        :param samplers: The samplers used to draw samples
+        :param window_size: expected window size
+        :param n_samples:
+        :param frequencies:
+        :param sampler_probs:
+        :param augmentation_function:
+        :param label_transform_function:
+        :param data_transform_function:
+        """
+
+        self.samplers = samplers
+        self.window_size = window_size
+        self.n_samples = n_samples
+        self.frequencies = frequencies
+        self.sampler_probs = np.ones(len(samplers))
+        self.augmentation_function = augmentation_function
+        self.label_transform_function = label_transform_function
+        self.data_transform_function = data_transform_function
+
+        # Normalize sampling probabillities
+        self.sampler_probs = np.array(self.sampler_probs)
+        self.sampler_probs = np.cumsum(self.sampler_probs).astype(float)
+        self.sampler_probs /= np.max(self.sampler_probs)
+
+    def __getitem__(self, index):
+        #Select which sampler to use
+        i = np.random.rand()
+        sample_idx = np.where(i < self.sampler_probs)[0][0]
+        sampler = self.samplers[sample_idx]
+
+        #Draw coordinate and echogram with sampler
+        center_location, echogram = sampler.get_sample()
+
+        #Get data/labels-patches
+        data, labels = get_crop(echogram, center_location, self.window_size, self.frequencies)
+
+        # Apply augmentation
+        if self.augmentation_function is not None:
+            data, labels, echogram = self.augmentation_function(data, labels, echogram)
+
+        # Apply label-transform-function
+        if self.label_transform_function is not None:
+            data, labels, echogram = self.label_transform_function(data, labels, echogram)
+
+        # Apply data-transform-function
+        if self.data_transform_function is not None:
+            data, labels, echogram, frequencies = self.data_transform_function(data, labels, echogram, self.frequencies)
+
+        labels = labels.astype('int16')
+        return data, sample_idx
+
+    def __len__(self):
+        return self.n_samples
+
+
 
 def get_crop(echogram, center_location, window_size, freqs):
     """

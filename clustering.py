@@ -136,8 +136,8 @@ def cluster_assign(images_lists, dataset):
     pseudolabels = []
     image_indexes = []
     for cluster, images in enumerate(images_lists):
-        image_indexes.extend(images)
-        pseudolabels.extend([cluster] * len(images))
+        image_indexes.extend(images)                 # [24 2 5 4 6 9 87 54]
+        pseudolabels.extend([cluster] * len(images)) # [0 0 0 0 1 1 1 1 1 ]
 
     # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
     #                                 std=[0.229, 0.224, 0.225])
@@ -174,6 +174,13 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     flat_config.useFloat16 = False
     flat_config.device = 0
     index = faiss.GpuIndexFlatL2(res, d, flat_config)
+
+    # CPU
+    # flat_config = faiss.GpuIndexFlatConfig()
+    # flat_config.useFloat16 = False
+    # flat_config.device = 0
+    # index = faiss.IndexFlatL2(d)
+
 
     # perform the training
     clus.train(x, index)
