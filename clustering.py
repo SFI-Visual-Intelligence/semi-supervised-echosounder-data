@@ -184,7 +184,7 @@ def run_kmeans(x, nmb_clusters, verbose=False):
 
     # perform the training
     clus.train(x, index)
-    _, I = index.search(x, 1)
+    D, I = index.search(x, 1)
     losses = faiss.vector_to_array(clus.obj)
     if verbose:
         print('k-means loss evolution: {0}'.format(losses))

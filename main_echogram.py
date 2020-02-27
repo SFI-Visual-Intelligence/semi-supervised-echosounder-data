@@ -57,6 +57,8 @@ from scipy.optimize import linear_sum_assignment
 #     ax5.imshow(labelmap)
 #     plt.savefig('./test_pics/label_%d_coord_%s_ename_%s.jpg' % (label, coord, ecname))
 
+# for i in range(500):
+#     fig_patches(dataset_train)
 def cluster_acc(Y_pred, Y):
     assert Y_pred.size == Y.size
     D = max(Y_pred.max(), Y.max())+1
@@ -77,9 +79,9 @@ def parse_args():
     parser.add_argument('--sobel', action='store_true', help='Sobel filtering')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=6,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=5,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_class', type=int, default=6,
+    parser.add_argument('--nmb_class', type=int, default=5,
                         help='number of classes of the top layer (default: 6)')
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
@@ -90,22 +92,22 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=40,
+    parser.add_argument('--epochs', type=int, default=1,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    # parser.add_argument('--resume', default='', type=str, metavar='PATH',
-    #                     help='path to checkpoint (default: None)')
-    parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
+    # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+    #                     help='path to checkpoint (default: None)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
-    # parser.add_argument('--exp', type=str, default='', help='path to exp folder')
-    parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+    # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
     # parser.add_argument('--verbose', action='store_true', help='chatty')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
@@ -114,12 +116,12 @@ def parse_args():
                         help='window size')
     parser.add_argument('--partition', type=str, default='year',
                         help='echogram partition (tr/val/te) by year')
-    parser.add_argument('--iteration_train', type=int, default=100,
+    parser.add_argument('--iteration_train', type=int, default=50,
                         help='num_tr_iterations per one batch and epoch')
     parser.add_argument('--iteration_val', type=int, default=50,
                         help='num_val_iterations per one batch and  epoch')
-    parser.add_argument('--sampler_probs', type=list, default=None,
-                        help='[bg, sb, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1, 1]')
+    parser.add_argument('--sampler_probs', type=list, default=[1, 1, 1, 1, 1],
+                        help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     # parser.add_argument('--iteration_test', type=int, default=100,
     #                     help='num_te_iterations per epoch')
     return parser.parse_args()
@@ -381,24 +383,24 @@ def main(args):
     echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
 
     sampler_bg_train = Background(echograms_train, window_size)
-    sampler_sb_train = Seabed(echograms_train, window_size)
+    # sampler_sb_train = Seabed(echograms_train, window_size)
     sampler_sh27_train = Shool(echograms_train, window_size, 27)
     sampler_sbsh27_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=27)
     sampler_sh01_train = Shool(echograms_train, window_size, 1)
     sampler_sbsh01_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=1)
 
     sampler_bg_val = Background(echograms_val, window_size)
-    sampler_sb_val = Seabed(echograms_val, window_size)
+    # sampler_sb_val = Seabed(echograms_val, window_size)
     sampler_sh27_val = Shool(echograms_val, window_size, 27)
     sampler_sbsh27_val = ShoolSeabed(echograms_val, window_size, args.window_dim//4, fish_type=27)
     sampler_sh01_val = Shool(echograms_val, window_size, 1)
     sampler_sbsh01_val = ShoolSeabed(echograms_val, window_size, args.window_dim//4, fish_type=1)
 
-    samplers_train = [sampler_bg_train, sampler_sb_train,
+    samplers_train = [sampler_bg_train, #sampler_sb_train,
                       sampler_sh27_train, sampler_sbsh27_train,
                       sampler_sh01_train, sampler_sbsh01_train]
 
-    samplers_val = [sampler_bg_val, sampler_sb_val,
+    samplers_val = [sampler_bg_val, # sampler_sb_val,
                     sampler_sh27_val, sampler_sbsh27_val,
                     sampler_sh01_val, sampler_sbsh01_val]
 
@@ -450,21 +452,26 @@ def main(args):
         features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
             = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
 
-        # save patches per epoch
-        if ((epoch+1) % 5 == 0):
-            cp_epoch_out = [input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
-            with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
-                pickle.dump(cp_epoch_out, f)
-
         # cluster the features
         # cluster the features
         if args.verbose:
             print('Cluster the features')
         clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
 
+        # save patches per epoch
+        cp_epoch_out = [features_train, deepcluster.images_lists, input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
+        with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
+            pickle.dump(cp_epoch_out, f)
+
         # assign pseudo-labels
         if args.verbose:
             print('Assign pseudo labels')
+
+        size_cluster = np.zeros(len(deepcluster.images_lists))
+        for i,  _list in enumerate(deepcluster.images_lists):
+            size_cluster[i] = len(_list)
+        print('size in clusters: ', size_cluster)
+
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
                                                   input_tensors_train)
 
@@ -482,7 +489,9 @@ def main(args):
 
         # set last fully connected layer
         mlp = list(model.classifier.children())
-        mlp.append(nn.ReLU(inplace=True).to(device))
+        mlp.append(nn.ReLU(inplace=True))
+        # mlp.append(nn.Softmax(dim=-1))
+
         model.classifier = nn.Sequential(*mlp)
         model.top_layer = nn.Linear(fd, args.nmb_class)
         model.top_layer.weight.data.normal_(0, 0.01)

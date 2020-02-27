@@ -89,11 +89,13 @@ class Echogram():
             data = data_transform(data, frequencies)
 
         # Initialize plot
-        plt = setup_matplotlib()
-        if figure is not None:
-            plt.clf()
 
-        plt.tight_layout()
+        # plt = setup_matplotlib()
+        # # if figure is not None:
+        #     plt.clf()
+        import matplotlib.pyplot as plt
+
+        # plt.tight_layout()
 
         # Tick labels
         tick_labels_y = self.range_vector

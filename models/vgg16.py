@@ -23,6 +23,7 @@ class VGG(nn.Module):
             # nn.Dropout(0.5),
             # nn.Linear(4096, 4096),
             # nn.ReLU(True)
+            # nn.Linear(512, 128),
             nn.Linear(2048, 256),
             nn.ReLU(True),
             nn.Dropout(0.5),
@@ -99,7 +100,7 @@ def vgg16(sobel=False, bn=True, out=1000):
     model = VGG(make_layers(dim, bn), out, sobel)
     return model
 
-def vgg16_tweak(sobel=False, bn=True, out=6):
+def vgg16_tweak(sobel=False, bn=True, out=5):
     dim = 4
     model = VGG(make_layers(dim, bn), out, sobel)
     return model

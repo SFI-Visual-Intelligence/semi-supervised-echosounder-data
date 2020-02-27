@@ -22,11 +22,11 @@ def set_localhost(val= None):
                     
 
 def setup_matplotlib(local_host_no = None):
-    set_localhost(local_host_no)
-    import platform
+    # set_localhost(local_host_no)
+    # import platform
     import matplotlib.pyplot as plt
-    if platform.system() is not 'Windows':
-        if plt.get_backend() != u'TkAgg' or plt.get_backend() != 'Qt5Agg':
-            print('setup_matplotlib: switching backend from', plt.get_backend(), 'to', 'TkAgg')
-            plt.switch_backend('TkAgg')
+    # if platform.system() is not 'Windows':
+    #     if plt.get_backend() != u'TkAgg' or plt.get_backend() != 'Qt5Agg':
+    #         print('setup_matplotlib: switching backend from', plt.get_backend(), 'to', 'TkAgg')
+    #         plt.switch_backend('TkAgg')
     return plt
