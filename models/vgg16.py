@@ -17,20 +17,14 @@ class VGG(nn.Module):
     def __init__(self, features, num_classes, sobel):
         super(VGG, self).__init__()
         self.features = features
+        # window size 128 / 2^5 = 4
         self.classifier = nn.Sequential(
-            # nn.Linear(512 * 7 * 7, 4096),
-            # nn.ReLU(True),
-            # nn.Dropout(0.5),
-            # nn.Linear(4096, 4096),
-            # nn.ReLU(True)
-            # nn.Linear(512, 128),
-            nn.Linear(2048, 256),
+            nn.Linear(512 * 4 * 4, 2048),
             nn.ReLU(True),
             nn.Dropout(0.5),
-            nn.Linear(256, 32),
-            nn.ReLU(True)
+            nn.Linear(2048, 512),
         )
-        self.top_layer = nn.Linear(32, num_classes)
+        self.top_layer = nn.Linear(512, num_classes)
         self._initialize_weights()
         if sobel:
             # grayscale = nn.Conv2d(3, 1, kernel_size=1, stride=1, padding=0)

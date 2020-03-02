@@ -79,7 +79,7 @@ def parse_args():
     parser.add_argument('--sobel', action='store_true', help='Sobel filtering')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=5,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=20,
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--nmb_class', type=int, default=5,
                         help='number of classes of the top layer (default: 6)')
@@ -90,29 +90,30 @@ def parse_args():
     parser.add_argument('--reassign', type=float, default=1,
                         help="""how many epochs of training between two consecutive
                         reassignments of clusters (default: 1)""")
-    parser.add_argument('--workers', default=4, type=int,
+    parser.add_argument('--workers', default=0, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=1,
+    parser.add_argument('--epochs', type=int, default=20,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--batch', default=32, type=int,
+    parser.add_argument('--save_epoch', default=21, type=int,
+                        help='save features every epoch number (default: 20)')
+    parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                        help='path to checkpoint (default: None)')
-    # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+    # parser.add_argument('--resume', default='', type=str, metavar='PATH',
     #                     help='path to checkpoint (default: None)')
+    parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+                        help='path to checkpoint (default: None)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
-    parser.add_argument('--exp', type=str, default='', help='path to exp folder')
-    # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
-    # parser.add_argument('--verbose', action='store_true', help='chatty')
+    # parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
                         help='4 frequencies [18, 38, 120, 200]')
-    parser.add_argument('--window_dim', type=int, default=64,
+    parser.add_argument('--window_dim', type=int, default=128,
                         help='window size')
     parser.add_argument('--partition', type=str, default='year',
                         help='echogram partition (tr/val/te) by year')
@@ -182,6 +183,8 @@ def train(loader, model, crit, opt, epoch, device, args):
         loss = crit(output, pseudo_target_var.long())
 
         # record loss
+        print('loss :', loss)
+        print('input_tensor.size(0) :', input_tensor.size(0))
         losses.update(loss.item(), input_tensor.size(0))
 
         # compute gradient and do SGD step
@@ -279,7 +282,6 @@ def compute_features(dataloader, model, N, device, args):
          for i, (input_tensor, label, center_location, ecname, labelmap) in enumerate(dataloader):
 
             input_tensor.double()
-            # input_var = torch.autograd.Variable(input_tensor.to(device), volatile=True)
             input_var = torch.autograd.Variable(input_tensor.to(device))
             aux = model(input_var).data.cpu().numpy()
 
@@ -332,7 +334,7 @@ def main(args):
         print('Architecture: {}'.format(args.arch))
 
     model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_class)
-    fd = int(model.top_layer.weight.size()[1])
+    fd = int(model.top_layer.weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
     model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
     model = model.double()
@@ -446,22 +448,30 @@ def main(args):
 
         # remove head
         model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1])
-
+        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear()
+                                                                             # not end with ReLU in .classfier()
         # get the features for the whole dataset
         features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
             = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
 
         # cluster the features
-        # cluster the features
         if args.verbose:
             print('Cluster the features')
         clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
 
-        # save patches per epoch
-        cp_epoch_out = [features_train, deepcluster.images_lists, input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
-        with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
-            pickle.dump(cp_epoch_out, f)
+        # deepcluster.images_dist_lists
+        # deepcluster.images_lists
+
+        # save patches per epochs
+        if ((epoch+1) % args.save_epoch == 0):
+            cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
+            with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
+                pickle.dump(cp_epoch_out, f)
+
+        if epoch % args.save_epoch == 0:
+            with open("./dist_lists_%d.pickle" % epoch, "wb") as g:
+                pickle.dump(deepcluster.images_dist_lists, g)
+
 
         # assign pseudo-labels
         if args.verbose:
@@ -488,11 +498,10 @@ def main(args):
         )
 
         # set last fully connected layer
-        mlp = list(model.classifier.children())
-        mlp.append(nn.ReLU(inplace=True))
-        # mlp.append(nn.Softmax(dim=-1))
-
+        mlp = list(model.classifier.children()) # classifier, not top layer
+        mlp.append(nn.ReLU(inplace=True))       # Add ReLU from here (not network model defintion phase)
         model.classifier = nn.Sequential(*mlp)
+
         model.top_layer = nn.Linear(fd, args.nmb_class)
         model.top_layer.weight.data.normal_(0, 0.01)
         model.top_layer.bias.data.zero_()
@@ -535,11 +544,11 @@ def main(args):
         val_loss, val_epoch_out = validation(val_dataloader, model, criterion, epoch, device=device, args=args)
         ###############################################################
 
-        # if ((epoch+1) % 1 == 0):
-        with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
-            pickle.dump(tr_epoch_out, f)
-        with open("./val_epoch_%d.pickle" % epoch, "wb") as f:
-            pickle.dump(val_epoch_out, f)
+        if ((epoch+1) % args.save_epoch == 0):
+            with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
+                pickle.dump(tr_epoch_out, f)
+            with open("./val_epoch_%d.pickle" % epoch, "wb") as g:
+                pickle.dump(val_epoch_out, g)
 
         # Accuracy with training set (output vs. pseudo label)
         accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))

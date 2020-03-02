@@ -136,8 +136,8 @@ def cluster_assign(images_lists, dataset):
     pseudolabels = []
     image_indexes = []
     for cluster, images in enumerate(images_lists):
-        image_indexes.extend(images)                 # [24 2 5 4 6 9 87 54]
-        pseudolabels.extend([cluster] * len(images)) # [0 0 0 0 1 1 1 1 1 ]
+        image_indexes.extend(images)                  # [24 2 5 4] [6 9 87 54]
+        pseudolabels.extend([cluster] * len(images))  # [0 0 0 0]  [1 1 1 1]
 
     # normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
     #                                 std=[0.229, 0.224, 0.225])
@@ -175,13 +175,6 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     flat_config.device = 0
     index = faiss.GpuIndexFlatL2(res, d, flat_config)
 
-    # CPU
-    # flat_config = faiss.GpuIndexFlatConfig()
-    # flat_config.useFloat16 = False
-    # flat_config.device = 0
-    # index = faiss.IndexFlatL2(d)
-
-
     # perform the training
     clus.train(x, index)
     D, I = index.search(x, 1)
@@ -189,7 +182,7 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     if verbose:
         print('k-means loss evolution: {0}'.format(losses))
 
-    return [int(n[0]) for n in I], losses[-1]
+    return [int(n[0]) for n in I], losses[-1], [int(d[0]) for d in D]
 
 
 def arrange_clustering(images_lists):
@@ -214,14 +207,14 @@ class Kmeans(object):
         end = time.time()
 
         # PCA-reducing, whitening and L2-normalization
-        xb = preprocess_features(data, pca=16)
+        xb = preprocess_features(data, pca=256)
 
         # cluster the data
-        I, loss = run_kmeans(xb, self.k, verbose)
+        I, loss, D = run_kmeans(xb, self.k, verbose)
         self.images_lists = [[] for i in range(self.k)]
+        self.images_dist_lists = [I, D]
         for i in range(len(data)):
             self.images_lists[I[i]].append(i)
-
         if verbose:
             print('k-means time: {0:.0f} s'.format(time.time() - end))
 
