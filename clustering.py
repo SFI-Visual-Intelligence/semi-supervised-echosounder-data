@@ -211,8 +211,8 @@ class Kmeans(object):
 
         # cluster the data
         I, loss, D = run_kmeans(xb, self.k, verbose)
+        self.images_dist_lists = [np.array(I), D]
         self.images_lists = [[] for i in range(self.k)]
-        self.images_dist_lists = [I, D]
         for i in range(len(data)):
             self.images_lists[I[i]].append(i)
         if verbose:
