@@ -98,7 +98,7 @@ def parse_args():
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=21, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=16, type=int,
+    parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',

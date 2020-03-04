@@ -75,7 +75,7 @@ class ReassignedDataset(data.Dataset):
         return len(self.imgs)
 
 
-def preprocess_features(npdata, pca=256):
+def preprocess_features(npdata, pca=16):
     """Preprocess an array of features.
     Args:
         npdata (np.array N * ndim): features to preprocess
