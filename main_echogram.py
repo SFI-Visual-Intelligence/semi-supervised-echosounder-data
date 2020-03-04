@@ -101,15 +101,15 @@ def parse_args():
     parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    # parser.add_argument('--resume', default='', type=str, metavar='PATH',
-    #                     help='path to checkpoint (default: None)')
-    parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+    parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
+    # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+    #                     help='path to checkpoint (default: None)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
-    # parser.add_argument('--exp', type=str, default='', help='path to exp folder')
-    parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+    # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
                         help='4 frequencies [18, 38, 120, 200]')
@@ -117,9 +117,9 @@ def parse_args():
                         help='window size')
     parser.add_argument('--partition', type=str, default='year',
                         help='echogram partition (tr/val/te) by year')
-    parser.add_argument('--iteration_train', type=int, default=50,
+    parser.add_argument('--iteration_train', type=int, default=2,
                         help='num_tr_iterations per one batch and epoch')
-    parser.add_argument('--iteration_val', type=int, default=50,
+    parser.add_argument('--iteration_val', type=int, default=2,
                         help='num_val_iterations per one batch and  epoch')
     parser.add_argument('--sampler_probs', type=list, default=[1, 1, 1, 1, 1],
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
@@ -448,8 +448,8 @@ def main(args):
 
         # remove head
         model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear()
-                                                                             # not end with ReLU in .classfier()
+        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # End with linear()
+                                                                                  # not end with ReLU in .classfier()
         # get the features for the whole dataset
         features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
             = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
@@ -498,8 +498,7 @@ def main(args):
         )
 
         # set last fully connected layer
-        mlp = list(model.classifier.children()) # classifier, not top layer
-        mlp.append(nn.ReLU(inplace=True))       # Add ReLU from here (not network model defintion phase)
+        mlp = list(model.classifier.children()) # classifier, not top layer that ends with ReLU
         model.classifier = nn.Sequential(*mlp)
 
         model.top_layer = nn.Linear(fd, args.nmb_class)
