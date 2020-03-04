@@ -442,7 +442,7 @@ def main(args):
 
     # clustering algorithm to use
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
-    #                   deepcluster = clustering.Kmeans(no.cluster)
+    #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
