@@ -100,6 +100,8 @@ def parse_args():
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
+    parser.add_argument('--pca', default=32, type=int,
+                        help='pca dimension (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--resume', default='', type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
@@ -439,7 +441,7 @@ def main(args):
                                              pin_memory=True)
 
     # clustering algorithm to use
-    deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster)
+    deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster)
 
     # training convnet with DeepCluster

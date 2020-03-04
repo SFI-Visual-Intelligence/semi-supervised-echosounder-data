@@ -27,11 +27,8 @@ class VGG(nn.Module):
             nn.Dropout(0.5),
             nn.Linear(512, 128),
             nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(128, 32),
-            nn.ReLU(True),
         )
-        self.top_layer = nn.Linear(32, num_classes)
+        self.top_layer = nn.Linear(128, num_classes)
         self._initialize_weights()
         if sobel:
             # grayscale = nn.Conv2d(3, 1, kernel_size=1, stride=1, padding=0)

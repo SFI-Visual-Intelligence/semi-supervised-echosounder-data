@@ -75,7 +75,7 @@ class ReassignedDataset(data.Dataset):
         return len(self.imgs)
 
 
-def preprocess_features(npdata, pca=16):
+def preprocess_features(npdata, pca):
     """Preprocess an array of features.
     Args:
         npdata (np.array N * ndim): features to preprocess
@@ -196,8 +196,9 @@ def arrange_clustering(images_lists):
 
 
 class Kmeans(object):
-    def __init__(self, k):
+    def __init__(self, k, pca):
         self.k = k
+        self.pca = pca
 
     def cluster(self, data, verbose=False):
         """Performs k-means clustering.
@@ -207,7 +208,7 @@ class Kmeans(object):
         end = time.time()
 
         # PCA-reducing, whitening and L2-normalization
-        xb = preprocess_features(data, pca=256)
+        xb = preprocess_features(data, pca=self.pca)
 
         # cluster the data
         I, loss, D = run_kmeans(xb, self.k, verbose)
