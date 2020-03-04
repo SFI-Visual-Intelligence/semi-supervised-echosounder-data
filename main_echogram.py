@@ -450,8 +450,8 @@ def main(args):
 
         # remove head
         model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # End with linear()
-                                                                                  # not end with ReLU in .classfier()
+        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear() in original vgg)
+                                                                                 # ReLU in .classfier() will follow later
         # get the features for the whole dataset
         features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
             = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
@@ -501,6 +501,7 @@ def main(args):
 
         # set last fully connected layer
         mlp = list(model.classifier.children()) # classifier, not top layer that ends with ReLU
+        mlp += [nn.ReLU(inplace=True)]
         model.classifier = nn.Sequential(*mlp)
 
         model.top_layer = nn.Linear(fd, args.nmb_class)

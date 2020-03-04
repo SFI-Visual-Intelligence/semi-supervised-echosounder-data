@@ -26,7 +26,6 @@ class VGG(nn.Module):
             nn.ReLU(True),
             nn.Dropout(0.5),
             nn.Linear(512, 128),
-            nn.ReLU(True),
         )
         self.top_layer = nn.Linear(128, num_classes)
         self._initialize_weights()
