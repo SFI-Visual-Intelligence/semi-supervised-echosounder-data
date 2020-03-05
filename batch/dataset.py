@@ -80,6 +80,7 @@ class DatasetVal():
 
     def __init__(self, samplers, window_size, frequencies,
                  n_samples = 1000,
+                 sampler_probs=None,
                  augmentation_function=None,
                  label_transform_function=None,
                  data_transform_function=None):
@@ -99,7 +100,7 @@ class DatasetVal():
         self.window_size = window_size
         self.n_samples = n_samples
         self.frequencies = frequencies
-        self.sampler_probs = np.ones(len(samplers))
+        self.sampler_probs = sampler_probs
         self.augmentation_function = augmentation_function
         self.label_transform_function = label_transform_function
         self.data_transform_function = data_transform_function
