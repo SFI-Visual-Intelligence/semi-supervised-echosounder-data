@@ -454,8 +454,8 @@ def main(args):
         model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear() in original vgg)
                                                                                  # ReLU in .classfier() will follow later
         # get the features for the whole dataset
-        features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
-            = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
+        # features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
+        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
 
         # cluster the features
         if args.verbose:
@@ -467,7 +467,8 @@ def main(args):
 
         # save patches per epochs
         if ((epoch+1) % args.save_epoch == 0):
-            cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
+            # cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
+            cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train]
             with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
 
