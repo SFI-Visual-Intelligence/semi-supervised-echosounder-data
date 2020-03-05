@@ -412,7 +412,7 @@ def main(args):
     label_transform = CombineFunctions([index_0_1_27, relabel_with_threshold_morph_close])
     data_transform = CombineFunctions([remove_nan_inf, db_with_limits])
 
-    dataset_train = Dataset(
+    dataset_train = DatasetVal(
         samplers_train,
         window_size,
         args.frequencies,
@@ -439,6 +439,7 @@ def main(args):
                                              batch_size=args.batch,
                                              num_workers=args.workers,
                                              pin_memory=True)
+    # next(iter(dataloader_cp)) => input_tensors, label, center_locations, ecnames, labelmaps
 
     # clustering algorithm to use
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
@@ -494,6 +495,7 @@ def main(args):
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=args.batch,
+            shuffle=False,
             num_workers=args.workers,
             sampler=sampler_train,
             pin_memory=True,
@@ -538,6 +540,7 @@ def main(args):
         val_dataloader = torch.utils.data.DataLoader(
             val_dataset,
             batch_size=args.batch,
+            shuffle=False,
             num_workers=args.workers,
             sampler=sampler_val,
             pin_memory=True,

@@ -105,6 +105,8 @@ class DatasetVal():
         self.data_transform_function = data_transform_function
 
         # Normalize sampling probabillities
+        if self.sampler_probs is None:
+            self.sampler_probs = np.ones(len(samplers))
         self.sampler_probs = np.array(self.sampler_probs)
         self.sampler_probs = np.cumsum(self.sampler_probs).astype(float)
         self.sampler_probs /= np.max(self.sampler_probs)
