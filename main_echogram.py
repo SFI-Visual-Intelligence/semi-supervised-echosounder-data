@@ -127,7 +127,7 @@ def parse_args():
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     # parser.add_argument('--iteration_test', type=int, default=100,
     #                     help='num_te_iterations per epoch')
-    return parser.parse_args()
+    return parser.parse_args(args=[])
 
 def train(loader, model, crit, opt, epoch, device, args):
     """Training of the CNN.
