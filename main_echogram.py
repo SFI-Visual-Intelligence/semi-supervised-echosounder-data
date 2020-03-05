@@ -81,8 +81,8 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=20,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_class', type=int, default=5,
-                        help='number of classes of the top layer (default: 6)')
+    # parser.add_argument('--nmb_class', type=int, default=5,
+    #                     help='number of classes of the top layer (default: 6)')
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
@@ -335,7 +335,7 @@ def main(args):
     if args.verbose:
         print('Architecture: {}'.format(args.arch))
 
-    model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_class)
+    model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_cluster)
     fd = int(model.top_layer.weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
     model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
@@ -508,7 +508,7 @@ def main(args):
         mlp += [nn.ReLU(inplace=True)]
         model.classifier = nn.Sequential(*mlp)
 
-        model.top_layer = nn.Linear(fd, args.nmb_class)
+        model.top_layer = nn.Linear(fd, args.nmb_cluster)
         model.top_layer.weight.data.normal_(0, 0.01)
         model.top_layer.bias.data.zero_()
         model.top_layer = model.top_layer.double()
