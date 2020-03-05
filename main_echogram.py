@@ -276,13 +276,13 @@ def compute_features(dataloader, model, N, device, args):
     # discard the label information in the dataloader
     input_tensors = []
     labels = []
-    center_location_heights = []
-    center_location_widths = []
-    ecnames = []
-    labelmaps = []
+    # center_location_heights = []
+    # center_location_widths = []
+    # ecnames = []
+    # labelmaps = []
     with torch.no_grad():
-         for i, (input_tensor, label, center_location, ecname, labelmap) in enumerate(dataloader):
-
+         # for i, (input_tensor, label, center_location, ecname, labelmap) in enumerate(dataloader):
+         for i, (input_tensor, label) in enumerate(dataloader):
             input_tensor.double()
             input_var = torch.autograd.Variable(input_tensor.to(device))
             aux = model(input_var).data.cpu().numpy()
@@ -308,19 +308,19 @@ def compute_features(dataloader, model, N, device, args):
 
             input_tensors.append(input_tensor.data.cpu().numpy())
             labels.append(label.data.cpu().numpy())
-            center_location_heights.append(center_location[0].data.cpu().numpy())
-            center_location_widths.append(center_location[1].data.cpu().numpy())
-            ecnames.append(ecname)
-            labelmaps.append(labelmap.data.cpu().numpy())
+            # center_location_heights.append(center_location[0].data.cpu().numpy())
+            # center_location_widths.append(center_location[1].data.cpu().numpy())
+            # ecnames.append(ecname)
+            # labelmaps.append(labelmap.data.cpu().numpy())
 
-         labels = np.concatenate(labels, axis=0)
-         center_location_heights = np.concatenate(center_location_heights, axis=0)
-         center_location_widths = np.concatenate(center_location_widths, axis=0)
-         ecnames = np.concatenate(ecnames, axis=0)
          input_tensors = np.concatenate(input_tensors, axis=0)
-         labelmaps = np.concatenate(labelmaps, axis=0)
-         return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
-         # return features, input_tensors
+         labels = np.concatenate(labels, axis=0)
+         # center_location_heights = np.concatenate(center_location_heights, axis=0)
+         # center_location_widths = np.concatenate(center_location_widths, axis=0)
+         # ecnames = np.concatenate(ecnames, axis=0)
+         # labelmaps = np.concatenate(labelmaps, axis=0)
+         # return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
+         return features, input_tensors, labels
 
 def main(args):
     # fix random seeds
