@@ -472,9 +472,9 @@ def main(args):
             with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
 
-        if epoch % args.save_epoch == 0:
-            with open("./dist_lists_%d.pickle" % epoch, "wb") as g:
-                pickle.dump(deepcluster.images_dist_lists, g)
+        # if epoch % args.save_epoch == 0:
+        #     with open("./dist_lists_%d.pickle" % epoch, "wb") as g:
+        #         pickle.dump(deepcluster.images_dist_lists, g)
 
 
         # assign pseudo-labels
@@ -487,7 +487,8 @@ def main(args):
         print('size in clusters: ', size_cluster)
 
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-                                                  input_tensors_train)
+                                                  input_tensors_train)  # Reassigned pseudolabel
+                                                                        # e.g. (7, 7, 3, 3, 3, 2, 2) -> (0, 0, 1, 1, 1, 2, 2)_
 
         # uniformly sample per target
         sampler_train = UnifLabelSampler(int(len(train_dataset)),
