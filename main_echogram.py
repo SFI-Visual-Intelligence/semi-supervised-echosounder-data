@@ -349,7 +349,7 @@ def main(args):
         print('Architecture: {}'.format(args.arch))
 
     model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_cluster)
-    fd = int(model.top_layer.weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
+    fd = int(model.top_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
     model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
     model = model.double()
