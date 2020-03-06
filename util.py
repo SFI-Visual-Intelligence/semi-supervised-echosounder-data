@@ -78,7 +78,7 @@ class UnifLabelSampler(Sampler):
             )
             res = np.concatenate((res, indexes))
 
-        np.random.shuffle(res)
+        # np.random.shuffle(res)
         res = list(res.astype('int'))
         if len(res) >= self.N:
             return res[:self.N]

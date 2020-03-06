@@ -123,11 +123,18 @@ def parse_args():
                         help='num_tr_iterations per one batch and epoch')
     parser.add_argument('--iteration_val', type=int, default=2,
                         help='num_val_iterations per one batch and  epoch')
-    parser.add_argument('--sampler_probs', type=list, default=[1, 1, 1, 1, 1],
+    parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     # parser.add_argument('--iteration_test', type=int, default=100,
     #                     help='num_te_iterations per epoch')
     return parser.parse_args(args=[])
+
+def zip_img_label(img_tensors, labels):
+    img_label_pair = []
+    for i, zips in enumerate(zip(img_tensors, labels)):
+        img_label_pair.append(zips)
+    print('num_pairs: ', len(img_label_pair))
+    return img_label_pair
 
 def train(loader, model, crit, opt, epoch, device, args):
     """Training of the CNN.
@@ -155,10 +162,11 @@ def train(loader, model, crit, opt, epoch, device, args):
 
     end = time.time()
     input_tensors = []
+    labels = []
     pseudo_targets = []
     outputs = []
 
-    for i, (input_tensor, pseudo_target) in enumerate(loader):
+    for i, ((input_tensor, label), pseudo_target) in enumerate(loader):
         data_time.update(time.time() - end)
 
         # save checkpoint
@@ -206,14 +214,17 @@ def train(loader, model, crit, opt, epoch, device, args):
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
 
+
         input_tensors.append(input_tensor.data.cpu().numpy())
         pseudo_targets.append(pseudo_target.data.cpu().numpy())
         outputs.append(output.data.cpu().numpy())
+        labels.append(label)
 
     input_tensors = np.concatenate(input_tensors, axis=0)
     pseudo_targets = np.concatenate(pseudo_targets, axis=0)
     outputs = np.concatenate(outputs, axis=0)
-    tr_epoch_out = [input_tensors, pseudo_targets, outputs]
+    labels = np.concatenate(labels, axis=0)
+    tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels]
     return losses.avg, tr_epoch_out
     # return losses.avg
 
@@ -235,37 +246,39 @@ def validation(loader, model, crit, epoch, device, args):
     model.eval()
     end = time.time()
     input_tensors = []
-    targets = []
+    labels = []
     outputs = []
     with torch.no_grad():
-        for i, (input_tensor, target) in enumerate(loader):
+        for i, (input_tensor, label) in enumerate(loader):
             data_time.update(time.time() - end)
             input_var = torch.autograd.Variable(input_tensor.to(device))
-            target_var = torch.autograd.Variable(target.to(device,  non_blocking=True))
+            # target_var = torch.autograd.Variable(target.to(device,  non_blocking=True))
 
             output = model(input_var)
-            val_loss = crit(output, target_var.long())
+            # val_loss = crit(output, target_var.long())
 
             # record loss
-            val_losses.update(val_loss.item(), input_tensor.size(0))
+            # val_losses.update(val_loss.item(), input_tensor.size(0))
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if args.verbose and (i % 10) == 0:
-                print('Epoch: [{0}][{1}/{2}]\t\t'
-                      'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Val_Loss: {val_loss.val:.4f} ({val_loss.avg:.4f})'
-                      .format(epoch, i, len(loader), batch_time=batch_time, val_loss=val_losses))
+            # if args.verbose and (i % 10) == 0:
+            #     print('Epoch: [{0}][{1}/{2}]\t\t'
+            #           'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+            #           'Val_Loss: {val_loss.val:.4f} ({val_loss.avg:.4f})'
+            #           .format(epoch, i, len(loader), batch_time=batch_time, val_loss=val_losses))
 
             input_tensors.append(input_tensor.data.cpu().numpy())
-            targets.append(target.data.cpu().numpy())
             outputs.append(output.data.cpu().numpy())
+            labels.append(label)
+
         input_tensors = np.concatenate(input_tensors, axis=0)
-        targets = np.concatenate(targets, axis=0)
+        labels = np.concatenate(labels, axis=0)
         outputs = np.concatenate(outputs, axis=0)
-        val_epoch_out = [input_tensors, targets, outputs]
+        val_epoch_out = [input_tensors, labels, outputs]
         return val_losses.avg, val_epoch_out
+        # return val_epoch_out
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -412,7 +425,7 @@ def main(args):
     label_transform = CombineFunctions([index_0_1_27, relabel_with_threshold_morph_close])
     data_transform = CombineFunctions([remove_nan_inf, db_with_limits])
 
-    dataset_train = DatasetVal(
+    dataset_train = Dataset(
         samplers_train,
         window_size,
         args.frequencies,
@@ -422,14 +435,22 @@ def main(args):
         label_transform_function=label_transform,
         data_transform_function=data_transform)
 
-    dataset_val_temp = DatasetVal(
+    dataset_val = DatasetVal(
         samplers_val,
         window_size,
         args.frequencies,
         args.batch * args.iteration_val,
+        args.sampler_probs,
         augmentation_function=None,
         label_transform_function=label_transform,
         data_transform_function=data_transform)
+
+    val_dataloader = torch.utils.data.DataLoader(dataset_val,
+                                             shuffle=True,
+                                             batch_size=args.batch,
+                                             num_workers=args.workers,
+                                             pin_memory=True)
+
 
     if args.verbose:
         print('Load dataset: {0:.2f} s'.format(time.time() - end))
@@ -451,7 +472,7 @@ def main(args):
 
         # remove head
         model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear() in original vgg)
+        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear(512*128) in original vgg)
                                                                                  # ReLU in .classfier() will follow later
         # get the features for the whole dataset
         # features_train, labels_train, center_locations_train, ecnames_train, input_tensors_train, labelmaps_train \
@@ -486,8 +507,9 @@ def main(args):
             size_cluster[i] = len(_list)
         print('size in clusters: ', size_cluster)
 
+        img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-                                                  input_tensors_train)  # Reassigned pseudolabel
+                                                  img_label_pair_train)  # Reassigned pseudolabel
                                                                         # e.g. (7, 7, 3, 3, 3, 2, 2) -> (0, 0, 1, 1, 1, 2, 2)_
 
         # uniformly sample per target
@@ -504,11 +526,15 @@ def main(args):
         )
 
         # set last fully connected layer
-        mlp = list(model.classifier.children()) # classifier, not top layer that ends with ReLU
-        mlp += [nn.ReLU(inplace=True)]
+        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
+        mlp.append(nn.ReLU(inplace=True).to(device))
         model.classifier = nn.Sequential(*mlp)
 
-        model.top_layer = nn.Linear(fd, args.nmb_cluster)
+        model.top_layer = nn.Sequential(
+            nn.Linear(fd, args.nmb_cluster),
+            nn.Softmax(dim=1),
+            )
+        # model.top_layer = nn.Linear(fd, args.nmb_cluster)
         model.top_layer.weight.data.normal_(0, 0.01)
         model.top_layer.bias.data.zero_()
         model.top_layer = model.top_layer.double()
@@ -522,31 +548,33 @@ def main(args):
 
         ###############################################################
         print('Extract validation samples')
-        input_tensors_val = []
-        labels_val = []
-        for i in range(args.batch * args.iteration_val):
-            input_tensor_val, label_val = dataset_val_temp[i]
-            input_tensors_val.append(input_tensor_val)
-            labels_val.append(label_val)
-
-        val_images_lists = [[] for i in range(args.nmb_cluster)]
-        for idx, label in enumerate(labels_val):
-            val_images_lists[label].append(idx)
-
-        val_dataset = clustering.cluster_assign(val_images_lists,
-                                                  input_tensors_val)
-        # uniformly sample per target
-        sampler_val = UnifLabelSampler(int(len(val_dataset)),
-                                         val_images_lists)
-
-        val_dataloader = torch.utils.data.DataLoader(
-            val_dataset,
-            batch_size=args.batch,
-            shuffle=False,
-            num_workers=args.workers,
-            sampler=sampler_val,
-            pin_memory=True,
-        )
+        # input_tensors_val = []
+        # labels_val = []
+        # for i in range(args.batch * args.iteration_val):
+        #     input_tensor_val, label_val = dataset_val[i]
+        #     input_tensors_val.append(input_tensor_val)
+        #     labels_val.append(label_val)
+        #
+        # val_images_lists = [[] for i in range(args.nmb_cluster)]
+        # for idx, label in enumerate(labels_val):
+        #     val_images_lists[label].append(idx)
+        #
+        # val_dataset = clustering.cluster_assign(val_images_lists,
+        #                                           input_tensors_val)
+        # # uniformly sample per target
+        # sampler_val = UnifLabelSampler(int(len(val_dataset)),
+        #                                  val_images_lists)
+        #
+        #
+        #
+        # val_dataloader = torch.utils.data.DataLoader(
+        #     val_dataset,
+        #     batch_size=args.batch,
+        #     shuffle=False,
+        #     num_workers=args.workers,
+        #     sampler=sampler_val,
+        #     pin_memory=True,
+        # )
 
         val_loss, val_epoch_out = validation(val_dataloader, model, criterion, epoch, device=device, args=args)
         ###############################################################
