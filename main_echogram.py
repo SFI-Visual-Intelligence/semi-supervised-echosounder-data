@@ -535,8 +535,8 @@ def main(args):
             nn.Softmax(dim=1),
             )
         # model.top_layer = nn.Linear(fd, args.nmb_cluster)
-        model.top_layer.weight.data.normal_(0, 0.01)
-        model.top_layer.bias.data.zero_()
+        model.top_layer[0].weight.data.normal_(0, 0.01)
+        model.top_layer[0].bias.data.zero_()
         model.top_layer = model.top_layer.double()
         model.top_layer.to(device)
 
