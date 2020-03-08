@@ -96,21 +96,21 @@ def parse_args():
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=21, type=int,
+    parser.add_argument('--save_epoch', default=20, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    parser.add_argument('--resume', default='', type=str, metavar='PATH',
+    parser.add_argument('--resume', default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster', type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
     #                     help='path to checkpoint (default: None)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
-    parser.add_argument('--exp', type=str, default='', help='path to exp folder')
+    parser.add_argument('--exp', type=str, default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster', help='path to exp folder')
     # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
@@ -547,59 +547,66 @@ def main(args):
 
 
         ###############################################################
-        print('Extract validation samples')
-        # input_tensors_val = []
-        # labels_val = []
-        # for i in range(args.batch * args.iteration_val):
-        #     input_tensor_val, label_val = dataset_val[i]
-        #     input_tensors_val.append(input_tensor_val)
-        #     labels_val.append(label_val)
+        # print('Extract validation samples')
+        # # input_tensors_val = []
+        # # labels_val = []
+        # # for i in range(args.batch * args.iteration_val):
+        # #     input_tensor_val, label_val = dataset_val[i]
+        # #     input_tensors_val.append(input_tensor_val)
+        # #     labels_val.append(label_val)
+        # #
+        # # val_images_lists = [[] for i in range(args.nmb_cluster)]
+        # # for idx, label in enumerate(labels_val):
+        # #     val_images_lists[label].append(idx)
+        # #
+        # # val_dataset = clustering.cluster_assign(val_images_lists,
+        # #                                           input_tensors_val)
+        # # # uniformly sample per target
+        # # sampler_val = UnifLabelSampler(int(len(val_dataset)),
+        # #                                  val_images_lists)
+        # #
+        # #
+        # #
+        # # val_dataloader = torch.utils.data.DataLoader(
+        # #     val_dataset,
+        # #     batch_size=args.batch,
+        # #     shuffle=False,
+        # #     num_workers=args.workers,
+        # #     sampler=sampler_val,
+        # #     pin_memory=True,
+        # # )
         #
-        # val_images_lists = [[] for i in range(args.nmb_cluster)]
-        # for idx, label in enumerate(labels_val):
-        #     val_images_lists[label].append(idx)
-        #
-        # val_dataset = clustering.cluster_assign(val_images_lists,
-        #                                           input_tensors_val)
-        # # uniformly sample per target
-        # sampler_val = UnifLabelSampler(int(len(val_dataset)),
-        #                                  val_images_lists)
-        #
-        #
-        #
-        # val_dataloader = torch.utils.data.DataLoader(
-        #     val_dataset,
-        #     batch_size=args.batch,
-        #     shuffle=False,
-        #     num_workers=args.workers,
-        #     sampler=sampler_val,
-        #     pin_memory=True,
-        # )
-
-        val_loss, val_epoch_out = validation(val_dataloader, model, criterion, epoch, device=device, args=args)
+        # val_loss, val_epoch_out = validation(val_dataloader, model, criterion, epoch, device=device, args=args)
         ###############################################################
 
         if ((epoch+1) % args.save_epoch == 0):
             with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(tr_epoch_out, f)
-            with open("./val_epoch_%d.pickle" % epoch, "wb") as g:
-                pickle.dump(val_epoch_out, g)
+            # with open("./val_epoch_%d.pickle" % epoch, "wb") as g:
+            #     pickle.dump(val_epoch_out, g)
 
         # Accuracy with training set (output vs. pseudo label)
         accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
         # Accuracy with validaton set (output vs. true label + Hunagarian)
-        accuracy_val, w = cluster_acc(np.argmax(val_epoch_out[2], axis=1), val_epoch_out[1])
+        # accuracy_val, w = cluster_acc(np.argmax(val_epoch_out[2], axis=1), val_epoch_out[1])
 
         # print log
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
-                  'Clustering loss: {2:.3f} \n'
-                  'ConvNet tr_loss: {3:.3f} \n'
-                  'ConvNet val_loss: {4:.3f} \n'
-                  'ConvNet tr_acc: {5:.3f} \n'
-                  'ConvNet val_acc: {6:.3f} \n'
-                  .format(epoch, time.time() - end, clustering_loss, loss,val_loss, accuracy_tr, accuracy_val))
+                  'Clustering loss: {1:.3f} \n'
+                  'ConvNet tr_loss: {2:.3f} \n'
+                  'ConvNet tr_acc: {3:.3f} \n'
+                  .format(epoch, time.time() - end, clustering_loss, loss, accuracy_tr))
+
+            # print('###### Epoch [{0}] ###### \n'
+            #       'Time: {1:.3f} s\n'
+            #       'Clustering loss: {2:.3f} \n'
+            #       'ConvNet tr_loss: {3:.3f} \n'
+            #       'ConvNet val_loss: {4:.3f} \n'
+            #       'ConvNet tr_acc: {5:.3f} \n'
+            #       'ConvNet val_acc: {6:.3f} \n'
+            #       .format(epoch, time.time() - end, clustering_loss, loss,val_loss, accuracy_tr, accuracy_val))
 
             try:
                 nmi = normalized_mutual_info_score(
