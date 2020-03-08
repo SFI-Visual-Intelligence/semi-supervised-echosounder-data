@@ -92,7 +92,7 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=0, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=2000,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
@@ -119,7 +119,7 @@ def parse_args():
                         help='window size')
     parser.add_argument('--partition', type=str, default='year',
                         help='echogram partition (tr/val/te) by year')
-    parser.add_argument('--iteration_train', type=int, default=2,
+    parser.add_argument('--iteration_train', type=int, default=50,
                         help='num_tr_iterations per one batch and epoch')
     parser.add_argument('--iteration_val', type=int, default=2,
                         help='num_val_iterations per one batch and  epoch')
@@ -595,9 +595,9 @@ def main(args):
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
-                  'Clustering loss: {1:.3f} \n'
-                  'ConvNet tr_loss: {2:.3f} \n'
-                  'ConvNet tr_acc: {3:.3f} \n'
+                  'Clustering loss: {2:.3f} \n'
+                  'ConvNet tr_loss: {3:.3f} \n'
+                  'ConvNet tr_acc: {4:.3f} \n'
                   .format(epoch, time.time() - end, clustering_loss, loss, accuracy_tr))
 
             # print('###### Epoch [{0}] ###### \n'
