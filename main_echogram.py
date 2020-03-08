@@ -543,7 +543,8 @@ def main(args):
         # train network with clusters as pseudo-labels
 
         end = time.time()
-        loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
+        with torch.autograd.set_detect_anomaly(True):
+            loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
 
 
         ###############################################################
