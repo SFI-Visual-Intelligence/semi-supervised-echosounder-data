@@ -527,7 +527,7 @@ def main(args):
 
         # set last fully connected layer
         mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
-        mlp.append(nn.ReLU(inplace=True).to(device))
+        mlp.append(nn.ReLU().to(device))
         model.classifier = nn.Sequential(*mlp)
 
         model.top_layer = nn.Sequential(
