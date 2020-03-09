@@ -462,7 +462,7 @@ def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256
         else:
             incomplete.append(name)
 
-    print(incomplete)
+    # print(incomplete)
 
     echograms = [Echogram(os.path.join(path_to_echograms, e)) for e in eg_names]
 
