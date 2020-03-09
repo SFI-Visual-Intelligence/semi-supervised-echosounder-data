@@ -103,15 +103,9 @@ def parse_args():
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 16)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    parser.add_argument('--resume', default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster', type=str, metavar='PATH',
-                        help='path to checkpoint (default: None)')
-    # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
-    #                     help='path to checkpoint (default: None)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
-    parser.add_argument('--exp', type=str, default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster', help='path to exp folder')
-    # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
                         help='4 frequencies [18, 38, 120, 200]')
@@ -127,6 +121,19 @@ def parse_args():
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     # parser.add_argument('--iteration_test', type=int, default=100,
     #                     help='num_te_iterations per epoch')
+    #
+    #
+    parser.add_argument('--resume',
+                        default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+                        help='path to checkpoint (default: None)')
+    parser.add_argument('--exp', type=str,
+                        default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster', help='path to exp folder')
+
+    # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+    #                     help='path to checkpoint (default: None)')
+    # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
+
+
     return parser.parse_args(args=[])
 
 def zip_img_label(img_tensors, labels):
@@ -193,8 +200,8 @@ def train(loader, model, crit, opt, epoch, device, args):
         loss = crit(output, pseudo_target_var.long())
 
         # record loss
-        print('loss :', loss)
-        print('input_tensor.size(0) :', input_tensor.size(0))
+        # print('loss :', loss)
+        # print('input_tensor.size(0) :', input_tensor.size(0))
         losses.update(loss.item(), input_tensor.size(0))
 
         # compute gradient and do SGD step
@@ -208,7 +215,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if args.verbose and (i % 10) == 0:
+        if args.verbose and (i % 5) == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
@@ -224,7 +231,7 @@ def train(loader, model, crit, opt, epoch, device, args):
     pseudo_targets = np.concatenate(pseudo_targets, axis=0)
     outputs = np.concatenate(outputs, axis=0)
     labels = np.concatenate(labels, axis=0)
-    tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels]
+    tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses]
     return losses.avg, tr_epoch_out
     # return losses.avg
 
@@ -276,7 +283,7 @@ def validation(loader, model, crit, epoch, device, args):
         input_tensors = np.concatenate(input_tensors, axis=0)
         labels = np.concatenate(labels, axis=0)
         outputs = np.concatenate(outputs, axis=0)
-        val_epoch_out = [input_tensors, labels, outputs]
+        val_epoch_out = [input_tensors, labels, outputs, val_losses]
         return val_losses.avg, val_epoch_out
         # return val_epoch_out
 
