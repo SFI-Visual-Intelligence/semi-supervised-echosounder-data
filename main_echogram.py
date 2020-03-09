@@ -22,6 +22,8 @@ import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
+import paths
+
 import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
@@ -69,6 +71,7 @@ def cluster_acc(Y_pred, Y):
     return sum([w[i,j] for i,j in zip(ind[0], ind[1])])*1.0/Y_pred.size, w
 
 def parse_args():
+    current_dir = os.getcwd()
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
 
     parser.add_argument("--mode", default='client')
@@ -121,19 +124,11 @@ def parse_args():
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     # parser.add_argument('--iteration_test', type=int, default=100,
     #                     help='num_te_iterations per epoch')
-    #
-    #
     parser.add_argument('--resume',
-                        default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
+                        default=os.path.join(current_dir, 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
-                        default='/content/gdrive/My Drive/UiT_phd/deepcluster/deepcluster', help='path to exp folder')
-
-    # parser.add_argument('--resume', default='/storage/deepcluster/checkpoint.pth.tar', type=str, metavar='PATH',
-    #                     help='path to checkpoint (default: None)')
-    # parser.add_argument('--exp', type=str, default='/storage/deepcluster', help='path to exp folder')
-
-
+                        default=current_dir, help='path to exp folder')
     return parser.parse_args(args=[])
 
 def zip_img_label(img_tensors, labels):
