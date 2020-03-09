@@ -28,7 +28,7 @@ class Echogram():
         self.frequencies  = load_meta(path, 'frequencies').squeeze().astype(int)
         self.range_vector = load_meta(path, 'range_vector').squeeze()
         self.time_vector  = load_meta(path, 'time_vector').squeeze()
-        # self.heave = load_meta(path, 'heave').squeeze()
+        self.heave = load_meta(path, 'heave').squeeze()
         self.data_dtype = load_meta(path, 'data_dtype')
         self.label_dtype = load_meta(path, 'label_dtype')
         self.shape = load_meta(path, 'shape')
@@ -280,8 +280,8 @@ class Echogram():
         """ Returns memory map array with labels """
 
         ### 'labels.dat' replaced by 'labels_heave.dat' - reversing heave corrections (waves making the ship go up and down) ###
-        return np.memmap(self.path + '/labels.dat', dtype=self.label_dtype, mode='r', shape=tuple(self.shape))
-        # return np.memmap(self.path + '/labels_heave.dat', dtype=self.label_dtype, mode='r', shape=tuple(self.shape))
+        # return np.memmap(self.path + '/labels.dat', dtype=self.label_dtype, mode='r', shape=tuple(self.shape))
+        return np.memmap(self.path + '/labels_heave.dat', dtype=self.label_dtype, mode='r', shape=tuple(self.shape))
 
     def data_memmaps(self, frequencies = None):
         """ Returns list of memory map arrays, one for each frequency in frequencies """
@@ -466,7 +466,7 @@ def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256
     echograms = [e for e in echograms if e.name not in depth_excluded_echograms]
 
     # Filter on shape of heave vs. image data: discard echograms with shape deviation
-    # echograms = [e for e in echograms if e.shape[1] == e.heave.shape[0]]
+    echograms = [e for e in echograms if e.shape[1] == e.heave.shape[0]]
 
     if years == 'all':
         return echograms
