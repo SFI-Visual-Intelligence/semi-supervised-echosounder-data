@@ -33,6 +33,7 @@ def pil_loader(path):
 
 
 class ReassignedDataset(data.Dataset):
+    # ReassignedDataset(image_indexes, pseudolabels, dataset, None)
     """A dataset where the new images labels are given in argument.
     Args:
         image_indexes (list): list of data indexes
@@ -54,7 +55,7 @@ class ReassignedDataset(data.Dataset):
             img = dataset[idx]
             # path = dataset[idx][0]
             pseudolabel = label_to_idx[pseudolabels[j]]
-            images.append((img, pseudolabel))
+            images.append((img, pseudolabel, idx))
         return images
 
     def __getitem__(self, index):
@@ -64,12 +65,12 @@ class ReassignedDataset(data.Dataset):
         Returns:
             tuple: (image, pseudolabel) where pseudolabel is the cluster of index datapoint
         """
-        img, pseudolabel = self.imgs[index]
+        img, pseudolabel, idx = self.imgs[index]
         # path, pseudolabel = self.imgs[index]
         # img = pil_loader(path)
         # if self.transform is not None:
         #     img = self.transform(img)
-        return img, pseudolabel
+        return img, pseudolabel, idx
 
     def __len__(self):
         return len(self.imgs)
@@ -123,6 +124,7 @@ def make_graph(xb, nnn):
 
 
 def cluster_assign(images_lists, dataset):
+    # clustering.cluster_assign(deepcluster.images_lists, img_label_pair_train)
     """Creates a dataset from clustering, with clusters as labels.
     Args:
         images_lists (list of list): for each cluster, the list of image indexes
