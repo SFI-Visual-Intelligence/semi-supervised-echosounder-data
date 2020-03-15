@@ -19,8 +19,7 @@ def partition_data(echograms, partition='year', portion_train_test=0.8, portion_
     # Choose partitioning of data by specifying 'partition' == 'random' OR 'year'
 
     if partition == 'train_only':
-        _ = None
-        train, val, test = echograms, _, _
+        train, val, test = echograms, [], []
 
     if partition == 'random':
         # Random partition of all echograms
