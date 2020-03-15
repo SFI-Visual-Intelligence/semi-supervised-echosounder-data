@@ -501,7 +501,7 @@ def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256
 def get_echograms_revised(eg_names_full, sample_idx, num_echograms=100):
     path_to_echograms = paths.path_to_echograms()
     index_list = np.arange(len(eg_names_full)//num_echograms)
-    if set(sample_idx) <= set(index_list):
+    if sample_idx not in set(index_list):
         sample_idx = 0
         print('Reset_sample_idx')
     eg_idx = np.arange(num_echograms*sample_idx, num_echograms *(sample_idx+1))
