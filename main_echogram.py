@@ -498,7 +498,7 @@ def main(args):
         if (epoch != 0) and (epoch % args.resample_echogram_epoch == 0):
             print('Sample echograms for epoch %d.' % epoch)
             end = time.time()
-            dataset_train, sampling_idx = sampling_echograms(window_size, sampling_idx, args)
+            dataset_train, sampling_idx = sampling_echograms(sampling_idx, window_size, args)
             with open(os.path.join(args.exp, 'sampling_idx.pkl'), 'wb') as egg:
                 pickle.dump(sampling_idx, egg)
             dataloader_cp = torch.utils.data.DataLoader(dataset_train,
