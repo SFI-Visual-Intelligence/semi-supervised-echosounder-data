@@ -349,7 +349,7 @@ def sampling_echograms(sample_idx, window_size, args):
     path_to_echograms = paths.path_to_echograms()
     with open(os.path.join(path_to_echograms, 'memmap_2014_heave.pkl'), 'rb') as fp:
         eg_names_full = pickle.load(fp)
-
+    sample_idx = int(sample_idx)
     echograms, sample_idx = get_echograms_revised(eg_names_full, sample_idx, num_echograms=args.num_echogram)
     echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
 
@@ -404,7 +404,7 @@ def sampling_echograms(sample_idx, window_size, args):
     #                                          batch_size=args.batch,
     #                                          num_workers=args.workers,
     #                                          pin_memory=True)
-    return dataset_train, sample_idx
+    return dataset_train, int(sample_idx)
 
 def main(args):
     # fix random seeds
@@ -472,7 +472,8 @@ def main(args):
     end = time.time()
     sampling_idx_check = os.path.join(args.exp, 'sampling_idx.pkl')
     if not os.path.isfile(sampling_idx_check):
-        sampling_idx = 0
+        print("No saved echogram sampling index. Start with 0")
+        sampling_idx = int(0)
     else:
         with open(os.path.join(args.exp, 'sampling_idx.pkl'), 'rb') as eg:
             sampling_idx = pickle.load(eg)
