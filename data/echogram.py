@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import matplotlib.colors as mcolors
 from scipy.signal import convolve2d as conv2d
+from itertools import islice, count
 
 import paths
 from data.normalization import db
@@ -446,8 +447,6 @@ class Echogram():
 
 def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256, num_echograms=100):
     """ Returns all the echograms for a given year that contain the given frequencies"""
-
-    path_to_echograms = paths.path_to_echograms()
     # eg_names_all = os.listdir(path_to_echograms)
     # eg_names_all = [name for name in eg_names_all if '.' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
     # eg_names_all = [name for name in eg_names_all if 'venv' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
@@ -461,32 +460,31 @@ def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256
     #         eg_names.append(name)
     #     else:
     #         incomplete.append(name)
-
-    with open(os.path.join(path_to_echograms, 'memmap_2014_learable.txt'), 'rb') as fp:
+    path_to_echograms = paths.path_to_echograms()
+    with open(os.path.join(path_to_echograms, 'memmap_2014_heave.pkl'), 'rb') as fp:
         eg_names_full = pickle.load(fp)
 
-    # with open('memmap_2014_incomplete.txt', 'rb') as fp2:
-    #     incomplete = pickle.load(fp2)
+    for i in range(int(len(eg_names_full)/num_echograms)):
+        eg_idx = np.arange(num_echograms*i, num_echograms *(i+1))
+        eg_names = list(map(eg_names_full.__getitem__, eg_idx))
 
-    eg_idx = np.random.choice(len(eg_names_full), size=num_echograms)
-    eg_names = list(map(eg_names_full.__getitem__, eg_idx))
 
     echograms = [Echogram(os.path.join(path_to_echograms, e)) for e in eg_names]
 
-    #Filter on frequencies
-    echograms = [e for e in echograms if all([f in e.frequencies for f in frequencies])]
-
-    # Filter on shape: minimum size
-    echograms = [e for e in echograms if (e.shape[0] > minimum_shape) & (e.shape[1] > minimum_shape)]
-
-    # Filter on shape of time_vector vs. image data: discard echograms with shape deviation
-    echograms = [e for e in echograms if e.shape[1] == e.time_vector.shape[0]]
-
-    # Filter on Korona depth measurements: discard echograms with missing depth files or deviating shape
-    echograms = [e for e in echograms if e.name not in depth_excluded_echograms]
-
-    # Filter on shape of heave vs. image data: discard echograms with shape deviation
-    echograms = [e for e in echograms if e.shape[1] == e.heave.shape[0]]
+    # #Filter on frequencies
+    # echograms = [e for e in echograms if all([f in e.frequencies for f in frequencies])]
+    #
+    # # Filter on shape: minimum size
+    # echograms = [e for e in echograms if (e.shape[0] > minimum_shape) & (e.shape[1] > minimum_shape)]
+    #
+    # # Filter on shape of time_vector vs. image data: discard echograms with shape deviation
+    # echograms = [e for e in echograms if e.shape[1] == e.time_vector.shape[0]]
+    #
+    # # Filter on Korona depth measurements: discard echograms with missing depth files or deviating shape
+    # echograms = [e for e in echograms if e.name not in depth_excluded_echograms]
+    #
+    # # Filter on shape of heave vs. image data: discard echograms with shape deviation
+    # echograms = [e for e in echograms if e.shape[1] == e.heave.shape[0]]
 
     if years == 'all':
         return echograms
@@ -500,6 +498,17 @@ def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256
 
         return echograms
 
+def get_echograms_revised(eg_names_full, sample_idx, num_echograms=100):
+    path_to_echograms = paths.path_to_echograms()
+    index_list = np.arange(len(eg_names_full)//num_echograms)
+    if set(sample_idx) <= set(index_list):
+        sample_idx = 0
+        print('Reset_sample_idx')
+    eg_idx = np.arange(num_echograms*sample_idx, num_echograms *(sample_idx+1))
+    eg_names = list(map(eg_names_full.__getitem__, eg_idx))
+    echograms = [Echogram(os.path.join(path_to_echograms, e)) for e in eg_names]
+    sample_idx += 1
+    return echograms, sample_idx
 
 if __name__ == '__main__':
     pass

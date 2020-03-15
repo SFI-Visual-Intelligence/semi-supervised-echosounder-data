@@ -30,7 +30,8 @@ from util import AverageMeter, Logger, UnifLabelSampler
 
 from batch.augmentation.flip_x_axis import flip_x_axis
 from batch.augmentation.add_noise import add_noise
-from data.echogram import get_echograms
+# from data.echogram import get_echograms
+from data.echogram import get_echograms_revised
 from batch.dataset import Dataset
 from batch.dataset import DatasetVal
 from batch.dataset_sampler import DatasetSingleSampler
@@ -116,7 +117,7 @@ def parse_args():
                         help='window size')
     parser.add_argument('--resample_echogram_epoch', type=int, default=40,
                         help='Resample echograms')
-    parser.add_argument('--num_echogram', type=int, default=100,
+    parser.add_argument('--num_echogram', type=int, default=50,
                         help='the size of sampled echograms')
     parser.add_argument('--partition', type=str, default='train_only',
                         help='echogram partition (tr/val/te) by year')
@@ -344,8 +345,12 @@ def compute_features(dataloader, model, N, device, args):
          # return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
          return features, input_tensors, labels
 
-def sampling_echograms(window_size, args):
-    echograms = get_echograms(frequencies=args.frequencies, minimum_shape=args.window_dim, num_echograms=args.num_echogram)
+def sampling_echograms(sample_idx, window_size, args):
+    path_to_echograms = paths.path_to_echograms()
+    with open(os.path.join(path_to_echograms, 'memmap_2014_heave.pkl'), 'rb') as fp:
+        eg_names_full = pickle.load(fp)
+
+    echograms, sample_idx = get_echograms_revised(eg_names_full, sample_idx, num_echograms=args.num_echogram)
     echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
 
     sampler_bg_train = Background(echograms_train, window_size)
@@ -399,7 +404,7 @@ def sampling_echograms(window_size, args):
     #                                          batch_size=args.batch,
     #                                          num_workers=args.workers,
     #                                          pin_memory=True)
-    return dataset_train
+    return dataset_train, sample_idx
 
 def main(args):
     # fix random seeds
@@ -462,8 +467,16 @@ def main(args):
     # load dataset (initial echograms)
     window_size = [args.window_dim, args.window_dim]
 
+    # Create echogram sampling index
+    print('Sample echograms initially.')
     end = time.time()
-    dataset_train = sampling_echograms(window_size, args)
+    sampling_idx_check = os.path.join(args.exp, 'sampling_idx.pkl')
+    if not os.path.isfile(sampling_idx_check):
+        sampling_idx = 0
+    else:
+        with open(os.path.join(args.exp, 'sampling_idx.pkl'), 'rb') as eg:
+            sampling_idx = pickle.load(eg)
+    dataset_train, sampling_idx = sampling_echograms(window_size, sampling_idx, args)
     dataloader_cp = torch.utils.data.DataLoader(dataset_train,
                                                 shuffle=False,
                                                 batch_size=args.batch,
@@ -480,8 +493,11 @@ def main(args):
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
         if (epoch != 0) and (epoch % args.resample_echogram_epoch == 0):
+            print('Sample echograms for epoch %d.' % epoch)
             end = time.time()
-            dataset_train = sampling_echograms(window_size, args)
+            dataset_train, sampling_idx = sampling_echograms(window_size, sampling_idx, args)
+            with open(os.path.join(args.exp, 'sampling_idx.pkl'), 'wb') as egg:
+                pickle.dump(sampling_idx, egg)
             dataloader_cp = torch.utils.data.DataLoader(dataset_train,
                                                         shuffle=False,
                                                         batch_size=args.batch,
