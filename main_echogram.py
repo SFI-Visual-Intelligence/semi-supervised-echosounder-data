@@ -114,11 +114,15 @@ def parse_args():
                         help='4 frequencies [18, 38, 120, 200]')
     parser.add_argument('--window_dim', type=int, default=128,
                         help='window size')
-    parser.add_argument('--partition', type=str, default='year',
+    parser.add_argument('--resample_echogram_epoch', type=int, default=40,
+                        help='Resample echograms')
+    parser.add_argument('--num_echogram', type=int, default=100,
+                        help='the size of sampled echograms')
+    parser.add_argument('--partition', type=str, default='train_only',
                         help='echogram partition (tr/val/te) by year')
     parser.add_argument('--iteration_train', type=int, default=50,
                         help='num_tr_iterations per one batch and epoch')
-    parser.add_argument('--iteration_val', type=int, default=2,
+    parser.add_argument('--iteration_val', type=int, default=1,
                         help='num_val_iterations per one batch and  epoch')
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
@@ -340,6 +344,63 @@ def compute_features(dataloader, model, N, device, args):
          # return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
          return features, input_tensors, labels
 
+def sampling_echograms(window_size, args):
+    echograms = get_echograms(frequencies=args.frequencies, minimum_shape=args.window_dim, num_echograms=args.num_echogram)
+    echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
+
+    sampler_bg_train = Background(echograms_train, window_size)
+    # sampler_sb_train = Seabed(echograms_train, window_size)
+    sampler_sh27_train = Shool(echograms_train, window_size, 27)
+    sampler_sbsh27_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=27)
+    sampler_sh01_train = Shool(echograms_train, window_size, 1)
+    sampler_sbsh01_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=1)
+
+    # sampler_bg_val = Background(echograms_val, window_size)
+    # # sampler_sb_val = Seabed(echograms_val, window_size)
+    # sampler_sh27_val = Shool(echograms_val, window_size, 27)
+    # sampler_sbsh27_val = ShoolSeabed(echograms_val, window_size, args.window_dim//4, fish_type=27)
+    # sampler_sh01_val = Shool(echograms_val, window_size, 1)
+    # sampler_sbsh01_val = ShoolSeabed(echograms_val, window_size, args.window_dim//4, fish_type=1)
+
+    samplers_train = [sampler_bg_train, #sampler_sb_train,
+                      sampler_sh27_train, sampler_sbsh27_train,
+                      sampler_sh01_train, sampler_sbsh01_train]
+
+    # samplers_val = [sampler_bg_val, # sampler_sb_val,
+    #                 sampler_sh27_val, sampler_sbsh27_val,
+    #                 sampler_sh01_val, sampler_sbsh01_val]
+
+    augmentation = CombineFunctions([add_noise, flip_x_axis])
+    label_transform = CombineFunctions([index_0_1_27, relabel_with_threshold_morph_close])
+    data_transform = CombineFunctions([remove_nan_inf, db_with_limits])
+
+    dataset_train = Dataset(
+        samplers_train,
+        window_size,
+        args.frequencies,
+        args.batch * args.iteration_train,
+        args.sampler_probs,
+        augmentation_function=augmentation,
+        label_transform_function=label_transform,
+        data_transform_function=data_transform)
+
+    # dataset_val = DatasetVal(
+    #     samplers_val,
+    #     window_size,
+    #     args.frequencies,
+    #     args.batch * args.iteration_val,
+    #     args.sampler_probs,
+    #     augmentation_function=None,
+    #     label_transform_function=label_transform,
+    #     data_transform_function=data_transform)
+
+    # val_dataloader = torch.utils.data.DataLoader(dataset_val,
+    #                                          shuffle=True,
+    #                                          batch_size=args.batch,
+    #                                          num_workers=args.workers,
+    #                                          pin_memory=True)
+    return dataset_train
+
 def main(args):
     # fix random seeds
     torch.manual_seed(args.seed)
@@ -398,82 +459,38 @@ def main(args):
     # creating cluster assignments log
     cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
 
-    # load dataset
-    end = time.time()
+    # load dataset (initial echograms)
     window_size = [args.window_dim, args.window_dim]
-    echograms = get_echograms(frequencies=args.frequencies, minimum_shape=args.window_dim)
-    echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
 
-    sampler_bg_train = Background(echograms_train, window_size)
-    # sampler_sb_train = Seabed(echograms_train, window_size)
-    sampler_sh27_train = Shool(echograms_train, window_size, 27)
-    sampler_sbsh27_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=27)
-    sampler_sh01_train = Shool(echograms_train, window_size, 1)
-    sampler_sbsh01_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=1)
-
-    sampler_bg_val = Background(echograms_val, window_size)
-    # sampler_sb_val = Seabed(echograms_val, window_size)
-    sampler_sh27_val = Shool(echograms_val, window_size, 27)
-    sampler_sbsh27_val = ShoolSeabed(echograms_val, window_size, args.window_dim//4, fish_type=27)
-    sampler_sh01_val = Shool(echograms_val, window_size, 1)
-    sampler_sbsh01_val = ShoolSeabed(echograms_val, window_size, args.window_dim//4, fish_type=1)
-
-    samplers_train = [sampler_bg_train, #sampler_sb_train,
-                      sampler_sh27_train, sampler_sbsh27_train,
-                      sampler_sh01_train, sampler_sbsh01_train]
-
-    samplers_val = [sampler_bg_val, # sampler_sb_val,
-                    sampler_sh27_val, sampler_sbsh27_val,
-                    sampler_sh01_val, sampler_sbsh01_val]
-
-    augmentation = CombineFunctions([add_noise, flip_x_axis])
-    label_transform = CombineFunctions([index_0_1_27, relabel_with_threshold_morph_close])
-    data_transform = CombineFunctions([remove_nan_inf, db_with_limits])
-
-    dataset_train = Dataset(
-        samplers_train,
-        window_size,
-        args.frequencies,
-        args.batch * args.iteration_train,
-        args.sampler_probs,
-        augmentation_function=augmentation,
-        label_transform_function=label_transform,
-        data_transform_function=data_transform)
-
-    dataset_val = DatasetVal(
-        samplers_val,
-        window_size,
-        args.frequencies,
-        args.batch * args.iteration_val,
-        args.sampler_probs,
-        augmentation_function=None,
-        label_transform_function=label_transform,
-        data_transform_function=data_transform)
-
-    val_dataloader = torch.utils.data.DataLoader(dataset_val,
-                                             shuffle=True,
-                                             batch_size=args.batch,
-                                             num_workers=args.workers,
-                                             pin_memory=True)
-
-
+    end = time.time()
+    dataset_train = sampling_echograms(window_size, args)
+    dataloader_cp = torch.utils.data.DataLoader(dataset_train,
+                                                shuffle=False,
+                                                batch_size=args.batch,
+                                                num_workers=args.workers,
+                                                pin_memory=True)
     if args.verbose:
         print('Load dataset: {0:.2f} s'.format(time.time() - end))
-
-    dataloader_cp = torch.utils.data.DataLoader(dataset_train,
-                                             shuffle=False,
-                                             batch_size=args.batch,
-                                             num_workers=args.workers,
-                                             pin_memory=True)
-    # next(iter(dataloader_cp)) => input_tensors, label, center_locations, ecnames, labelmaps
 
     # clustering algorithm to use
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
+
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
-        end = time.time()
+        if (epoch != 0) and (epoch % args.resample_echogram_epoch == 0):
+            end = time.time()
+            dataset_train = sampling_echograms(window_size, args)
+            dataloader_cp = torch.utils.data.DataLoader(dataset_train,
+                                                        shuffle=False,
+                                                        batch_size=args.batch,
+                                                        num_workers=args.workers,
+                                                        pin_memory=True)
+            if args.verbose:
+                print('Load dataset: {0:.2f} s'.format(time.time() - end))
+
+
 
         # remove head
         model.top_layer = None
@@ -484,39 +501,29 @@ def main(args):
         features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
 
         # cluster the features
-        if args.verbose:
-            print('Cluster the features')
+        print('Cluster the features')
+        end = time.time()
         clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
-
-        # deepcluster.images_dist_lists
-        # deepcluster.images_lists
+        print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
         # save patches per epochs
+
         if ((epoch+1) % args.save_epoch == 0):
-            # cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train, center_locations_train, ecnames_train, labelmaps_train]
+            end = time.time()
             cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train]
             with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
-
-        # if epoch % args.save_epoch == 0:
-        #     with open("./dist_lists_%d.pickle" % epoch, "wb") as g:
-        #         pickle.dump(deepcluster.images_dist_lists, g)
-
+            print('Feature save time: {0:.2f} s'.format(time.time() - end))
 
         # assign pseudo-labels
-        if args.verbose:
-            print('Assign pseudo labels')
-
+        print('Assign pseudo labels')
         size_cluster = np.zeros(len(deepcluster.images_lists))
         for i,  _list in enumerate(deepcluster.images_lists):
             size_cluster[i] = len(_list)
         print('size in clusters: ', size_cluster)
-
         img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
                                                   img_label_pair_train)  # Reassigned pseudolabel
-                                                                        # e.g. (7, 7, 3, 3, 3, 2, 2) -> (0, 0, 1, 1, 1, 2, 2)_
-
         # uniformly sample per target
         sampler_train = UnifLabelSampler(int(len(train_dataset)),
                                    deepcluster.images_lists)
@@ -546,11 +553,10 @@ def main(args):
         model.top_layer.to(device)
 
         # train network with clusters as pseudo-labels
-
         end = time.time()
         with torch.autograd.set_detect_anomaly(True):
             loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
-
+        print('Train time: {0:.2f} s'.format(time.time() - end))
 
         ###############################################################
         # print('Extract validation samples')
@@ -586,10 +592,10 @@ def main(args):
         ###############################################################
 
         if ((epoch+1) % args.save_epoch == 0):
+            end = time.time()
             with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(tr_epoch_out, f)
-            # with open("./val_epoch_%d.pickle" % epoch, "wb") as g:
-            #     pickle.dump(val_epoch_out, g)
+            print('Save train time: {0:.2f} s'.format(time.time() - end))
 
         # Accuracy with training set (output vs. pseudo label)
         accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
@@ -604,15 +610,6 @@ def main(args):
                   'ConvNet tr_loss: {3:.3f} \n'
                   'ConvNet tr_acc: {4:.3f} \n'
                   .format(epoch, time.time() - end, clustering_loss, loss, accuracy_tr))
-
-            # print('###### Epoch [{0}] ###### \n'
-            #       'Time: {1:.3f} s\n'
-            #       'Clustering loss: {2:.3f} \n'
-            #       'ConvNet tr_loss: {3:.3f} \n'
-            #       'ConvNet val_loss: {4:.3f} \n'
-            #       'ConvNet tr_acc: {5:.3f} \n'
-            #       'ConvNet val_acc: {6:.3f} \n'
-            #       .format(epoch, time.time() - end, clustering_loss, loss,val_loss, accuracy_tr, accuracy_val))
 
             try:
                 nmi = normalized_mutual_info_score(

@@ -444,25 +444,32 @@ class Echogram():
 
             return self._statistics
 
-def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256):
+def get_echograms(years='all', frequencies=[18, 38, 120, 200], minimum_shape=256, num_echograms=100):
     """ Returns all the echograms for a given year that contain the given frequencies"""
 
     path_to_echograms = paths.path_to_echograms()
-    eg_names_all = os.listdir(path_to_echograms)
-    eg_names_all = [name for name in eg_names_all if '.' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
-    eg_names_all = [name for name in eg_names_all if 'venv' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
-    requirement = ['data_for_freq_18.dat', 'data_for_freq_38.dat', 'data_for_freq_120.dat', 'data_for_freq_200.dat', 'labels_heave.dat']
-    eg_names = []
-    incomplete = []
-    for name in eg_names_all:
-        fulldir = os.path.join(path_to_echograms, name)
-        allfiles = os.listdir(fulldir)
-        if set(requirement) <= set(allfiles):
-            eg_names.append(name)
-        else:
-            incomplete.append(name)
+    # eg_names_all = os.listdir(path_to_echograms)
+    # eg_names_all = [name for name in eg_names_all if '.' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
+    # eg_names_all = [name for name in eg_names_all if 'venv' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
+    # requirement = ['data_for_freq_18.dat', 'data_for_freq_38.dat', 'data_for_freq_120.dat', 'data_for_freq_200.dat', 'labels_heave.dat']
+    # eg_names = []
+    # incomplete = []
+    # for name in eg_names_all:
+    #     fulldir = os.path.join(path_to_echograms, name)
+    #     allfiles = os.listdir(fulldir)
+    #     if set(requirement) <= set(allfiles):
+    #         eg_names.append(name)
+    #     else:
+    #         incomplete.append(name)
 
-    # print(incomplete)
+    with open(os.path.join(path_to_echograms, 'memmap_2014_learable.txt'), 'rb') as fp:
+        eg_names_full = pickle.load(fp)
+
+    # with open('memmap_2014_incomplete.txt', 'rb') as fp2:
+    #     incomplete = pickle.load(fp2)
+
+    eg_idx = np.random.choice(len(eg_names_full), size=num_echograms)
+    eg_names = list(map(eg_names_full.__getitem__, eg_idx))
 
     echograms = [Echogram(os.path.join(path_to_echograms, e)) for e in eg_names]
 

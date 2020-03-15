@@ -18,6 +18,10 @@ from batch.combine_functions import CombineFunctions
 def partition_data(echograms, partition='year', portion_train_test=0.8, portion_train_val=0.75):
     # Choose partitioning of data by specifying 'partition' == 'random' OR 'year'
 
+    if partition == 'train_only':
+        _ = None
+        train, val, test = echograms, _, _
+
     if partition == 'random':
         # Random partition of all echograms
 
