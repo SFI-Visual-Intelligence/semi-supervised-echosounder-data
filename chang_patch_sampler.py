@@ -21,7 +21,7 @@ def partition_data(echograms, partition='year', portion_train_test=0.8, portion_
     if partition == 'train_only':
         train, val, test = echograms, [], []
 
-    if partition == 'random':
+    elif partition == 'random':
         # Random partition of all echograms
 
         # Set random seed to get the same partition every time
