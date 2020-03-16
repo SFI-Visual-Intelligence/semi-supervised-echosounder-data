@@ -100,7 +100,7 @@ def parse_args():
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=20, type=int,
+    parser.add_argument('--save_epoch', default=10, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
@@ -115,7 +115,7 @@ def parse_args():
                         help='4 frequencies [18, 38, 120, 200]')
     parser.add_argument('--window_dim', type=int, default=128,
                         help='window size')
-    parser.add_argument('--resample_echogram_epoch', type=int, default=40,
+    parser.add_argument('--resample_echogram_epoch', type=int, default=100,
                         help='Resample echograms')
     parser.add_argument('--num_echogram', type=int, default=50,
                         help='the size of sampled echograms')
