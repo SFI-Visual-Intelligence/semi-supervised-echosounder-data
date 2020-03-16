@@ -544,6 +544,8 @@ def main(args):
         img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
                                                   img_label_pair_train)  # Reassigned pseudolabel
+        # order of pseudo label
+
         # uniformly sample per target
         sampler_train = UnifLabelSampler(int(len(train_dataset)),
                                    deepcluster.images_lists)
