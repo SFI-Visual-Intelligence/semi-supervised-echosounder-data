@@ -492,6 +492,7 @@ def main(args):
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
+    loss_collect = [[], []]
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
@@ -645,6 +646,11 @@ def main(args):
                     'state_dict': model.state_dict(),
                     'optimizer' : optimizer.state_dict()},
                    os.path.join(args.exp, 'checkpoint.pth.tar'))
+
+        loss_collect[0].append(epoch)
+        loss_collect[1].append(loss)
+        with open("./loss_collect.pickle", "wb") as f:
+            pickle.dump(loss_collect, f)
 
         # save cluster assignments
         cluster_log.log(deepcluster.images_lists)
