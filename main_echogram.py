@@ -83,11 +83,11 @@ def parse_args():
     parser.add_argument('--sobel', action='store_true', help='Sobel filtering')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=20,
                         help='number of cluster for k-means (default: 10000)')
     # parser.add_argument('--nmb_class', type=int, default=5,
     #                     help='number of classes of the top layer (default: 6)')
-    parser.add_argument('--lr', default=0.01, type=float,
+    parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
@@ -115,7 +115,7 @@ def parse_args():
                         help='4 frequencies [18, 38, 120, 200]')
     parser.add_argument('--window_dim', type=int, default=128,
                         help='window size')
-    parser.add_argument('--resample_echogram_epoch', type=int, default=100,
+    parser.add_argument('--resample_echogram_epoch', type=int, default=300,
                         help='Resample echograms')
     parser.add_argument('--num_echogram', type=int, default=50,
                         help='the size of sampled echograms')
