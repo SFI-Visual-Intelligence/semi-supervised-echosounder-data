@@ -70,10 +70,9 @@ class Shool():
         y,x = o['indexes'][pi, :]
 
         # Correct x if window is not inside echogram
-        if (x < self.window_size[1]//2) or (x > e.shape[1] - self.window_size[1]//2):
-            print('dimension: ', e.shape, '[y, x]: ', [y, x], self.window_size[0])
-            print("Patch locates out of the echogram. Resample it.")
-            return self.get_sample()
-
+        if (x < self.window_size[1]//2):
+            x = self.window_size[1]//2
+        elif (x > e.shape[1] - self.window_size[1]//2):
+            x = e.shape[1] - self.window_size[1]//2
         return [y,x], e
 
