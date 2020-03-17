@@ -125,7 +125,7 @@ class UnifLabelSampler(Sampler):
             # print(indexes)
             intial_tile = np.tile(self.initial, size_per_pseudolabel)
             indexes = indexes + intial_tile
-            print(indexes, intial_tile)
+            # print(indexes, intial_tile)
             self.initial += len(self.images_lists[i])
             res = np.concatenate((res, indexes))
 

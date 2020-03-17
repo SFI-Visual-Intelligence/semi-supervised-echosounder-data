@@ -83,7 +83,7 @@ def parse_args():
     parser.add_argument('--sobel', action='store_true', help='Sobel filtering')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=20,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=1000,
                         help='number of cluster for k-means (default: 10000)')
     # parser.add_argument('--nmb_class', type=int, default=5,
     #                     help='number of classes of the top layer (default: 6)')
@@ -492,7 +492,7 @@ def main(args):
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
-    loss_collect = [[], []]
+    loss_collect = [[], [], []]
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
@@ -651,6 +651,7 @@ def main(args):
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(loss)
+        loss_collect[2].append(accuracy_tr)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 
