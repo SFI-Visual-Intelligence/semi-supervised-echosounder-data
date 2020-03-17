@@ -87,7 +87,7 @@ def parse_args():
                         help='number of cluster for k-means (default: 10000)')
     # parser.add_argument('--nmb_class', type=int, default=5,
     #                     help='number of classes of the top layer (default: 6)')
-    parser.add_argument('--lr', default=0.05, type=float,
+    parser.add_argument('--lr', default=0.01, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
