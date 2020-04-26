@@ -49,7 +49,7 @@ class ReassignedDataset(data.Dataset):
         self.transform = transform
 
     def make_dataset(self, image_indexes, pseudolabels, dataset):
-        label_to_idx = {label: idx for idx, label in enumerate(set(pseudolabels))}
+        label_to_idx = {label: idx for idx, label in enumerate(set(pseudolabels))} # provide index per pseudoclass
         images = []
         for j, idx in enumerate(image_indexes):
             img = dataset[idx]
