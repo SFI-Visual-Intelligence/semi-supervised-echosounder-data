@@ -1,7 +1,5 @@
 import numpy as np
 
-from batch.augmentation.flip_x_axis import flip_x_axis
-from batch.augmentation.add_noise import add_noise
 from data.echogram import get_echograms
 from batch.dataset import Dataset
 from batch.dataset_sampler import DatasetSingleSampler

@@ -33,3 +33,15 @@ class Background():
             return self.get_sample() #Draw new sample
 
         return [y,x], self.echograms[ei]
+
+    def get_all_samples(self, num_samples=6001):
+        """
+        :return: [(int) y-coordinate, (int) x-coordinate], (Echogram) selected echogram
+        """
+        center_locations = []
+        echograms = []
+        for i in range(num_samples):
+            [y, x], e = self.get_sample()
+            center_locations.append([y, x])
+            echograms.append(e)
+        return center_locations, echograms

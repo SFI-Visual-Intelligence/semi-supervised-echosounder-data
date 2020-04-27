@@ -21,32 +21,20 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-
 import paths
 
 import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
 
-from batch.augmentation.flip_x_axis import flip_x_axis
-from batch.augmentation.add_noise import add_noise
-# from data.echogram import get_echograms
-from data.echogram import get_echograms_revised, get_echograms_full
-from batch.dataset import Dataset
-from batch.dataset import DatasetVal
-from batch.dataset_sampler import DatasetSingleSampler
-from batch.samplers.background import Background
-from batch.samplers.seabed import Seabed
-from batch.samplers.shool import Shool
-from batch.samplers.shool_seabed import ShoolSeabed
-from batch.data_transform_functions.remove_nan_inf import remove_nan_inf
-from batch.data_transform_functions.db_with_limits import db_with_limits
-from batch.label_transform_functions.index_0_1_27 import index_0_1_27
-from batch.label_transform_functions.relabel_with_threshold_morph_close import relabel_with_threshold_morph_close
+from batch.augmentation.flip_x_axis import flip_x_axis_img
+from batch.augmentation.add_noise import add_noise_img
+from batch.dataset import DatasetImg
+from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
+from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
-import chang_patch_sampler as cps
 from scipy.optimize import linear_sum_assignment
-
+import matplotlib.pyplot as plt
 # def cluster_acc(Y_pred, Y):
 #     assert Y_pred.size == Y.size
 #     D = max(Y_pred.max(), Y.max())+1
@@ -319,39 +307,61 @@ def compute_features(dataloader, model, N, device, args):
          # return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
          return features, input_tensors, labels
 
-def sampling_echograms_full(window_size, args):
+def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    with open(os.path.join(path_to_echograms, 'memmap_2014_heave.pkl'), 'rb') as fp:
-        eg_names_full = pickle.load(fp)
-    echograms = get_echograms_full(eg_names_full)
-    echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
+    # path_to_echograms = "/Users/changkyu/Documents/GitHub/echogram/memmap/memmap_set"
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_3000.pt'))
+    augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
+    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
-    sampler_bg_train = Background(echograms_train, window_size)
-    sampler_sh27_train = Shool(echograms_train, window_size, 27)
-    sampler_sbsh27_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=27)
-    sampler_sh01_train = Shool(echograms_train, window_size, 1)
-    sampler_sbsh01_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=1)
-
-    samplers_train = [sampler_bg_train,
-                      sampler_sh27_train, sampler_sbsh27_train,
-                      sampler_sh01_train, sampler_sbsh01_train]
-
-    augmentation = CombineFunctions([add_noise, flip_x_axis])
-    label_transform = CombineFunctions([index_0_1_27, relabel_with_threshold_morph_close])
-    data_transform = CombineFunctions([remove_nan_inf, db_with_limits])
-
-    dataset_train = Dataset(
+    dataset_train = DatasetImg(
         samplers_train,
-        window_size,
-        args.frequencies,
-        args.batch * args.iteration_train,
+        15000,
         args.sampler_probs,
         augmentation_function=augmentation,
-        label_transform_function=label_transform,
         data_transform_function=data_transform)
-
     return dataset_train
 
+# bg = torch.load(os.path.join(path_to_echograms, 'numpy_bg_2999.pt')) + \
+#      torch.load(os.path.join(path_to_echograms, 'numpy_bg_5999.pt'))
+# bg_idx = np.random.choice(np.arange(len(bg)), size=3000, replace=False)
+# bg = [bg[idx] for idx in bg_idx]
+#
+# sbsh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_2999.pt')) +\
+#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_5999.pt')) +\
+#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_8999.pt')) +\
+#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_11999.pt')) +\
+#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_12667.pt'))
+# sbsh01_idx = np.random.choice(np.arange(len(sbsh01)), size=3000, replace=False)
+# sbsh01 = [sbsh01[idx] for idx in sbsh01_idx]
+#
+# sbsh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_2999.pt'))+\
+#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_3079.pt'))
+# sbsh27_idx = np.random.choice(np.arange(len(sbsh27)), size=3000, replace=False)
+# sbsh27 = [sbsh27[idx] for idx in sbsh27_idx]
+#
+# sh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sh01_2999.pt'))+\
+#        torch.load(os.path.join(path_to_echograms, 'numpy_sh01_4046.pt'))
+# sh01_idx = np.random.choice(np.arange(len(sh01)), size=3000, replace=False)
+# sh01 = [sh01[idx] for idx in sh01_idx]
+#
+# sh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sh27_2999.pt'))+\
+#        torch.load(os.path.join(path_to_echograms, 'numpy_sh27_3549.pt'))
+# sh27_idx = np.random.choice(np.arange(len(sh27)), size=3000, replace=False)
+# sh27 = [sh27[idx] for idx in sh27_idx]
+# samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
+# torch.save(samplers_train, 'samplers_3000.pt')
+# samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
+# def sample_align(samplers):
+#     num_samples = []
+#     new_samplers = []
+#     for i in range(len(samplers)):
+#         num_samples.append(len(samplers[i]))
+#     max_num_sample = np.min(num_samples)
+#     print(max_num_sample)
+#     for i in range(len(samplers)):
+#         new_samplers.append(np.random.choice(samplers[i], size=max_num_sample, replace=False))
+#     return new_samplers
 
 def main(args):
     # fix random seeds
@@ -417,11 +427,12 @@ def main(args):
     # # Create echogram sampling index
     print('Sample echograms.')
     end = time.time()
-    dataset_train = sampling_echograms_full(window_size, args)
+    dataset_train = sampling_echograms_full(args)
     dataloader_cp = torch.utils.data.DataLoader(dataset_train,
                                                 shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
+                                                drop_last=True,
                                                 pin_memory=True)
     if args.verbose:
         print('Load dataset: {0:.2f} s'.format(time.time() - end))

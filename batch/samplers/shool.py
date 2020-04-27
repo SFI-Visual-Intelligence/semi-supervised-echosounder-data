@@ -76,3 +76,23 @@ class Shool():
             x = e.shape[1] - self.window_size[1]//2
         return [y,x], e
 
+    def get_all_samples(self):
+        """
+        :return: [(int) y-coordinate, (int) x-coordinate], (Echogram) selected echogram
+        """
+        center_locations = []
+        echograms = []
+        #Random object
+        for i, (e, o) in enumerate(self.solid_shools):
+        #Random pixel in object
+            pi = np.random.randint(o['n_pixels'])
+            y,x = o['indexes'][pi, :]
+            # Correct x if window is not inside echogram
+            if (x < self.window_size[1]//2):
+                x = self.window_size[1]//2
+            elif (x > e.shape[1] - self.window_size[1]//2):
+                x = e.shape[1] - self.window_size[1]//2
+            center_locations.append([y, x])
+            echograms.append(e)
+        return center_locations, echograms
+
