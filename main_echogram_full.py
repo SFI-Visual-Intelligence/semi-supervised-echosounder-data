@@ -389,17 +389,17 @@ def main(args):
     model.to(device)
     cudnn.benchmark = True
     # create optimizer
-    # optimizer = torch.optim.SGD(
-    #     filter(lambda x: x.requires_grad, model.parameters()),
-    #     lr=args.lr,
-    #     momentum=args.momentum,
-    #     weight_decay=10**args.wd,
-    # )
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.SGD(
         filter(lambda x: x.requires_grad, model.parameters()),
         lr=args.lr,
-        weight_decay=10 ** args.wd,
+        momentum=args.momentum,
+        weight_decay=10**args.wd,
     )
+    # optimizer = torch.optim.Adam(
+    #     filter(lambda x: x.requires_grad, model.parameters()),
+    #     lr=args.lr,
+    #     weight_decay=10 ** args.wd,
+    # )
     criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
