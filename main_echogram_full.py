@@ -55,7 +55,7 @@ def parse_args():
                         help='CNN architecture (default: vgg16)')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=20,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--lr', default=0.05, type=float,
                         help='learning rate (default: 0.05)')
@@ -308,60 +308,65 @@ def compute_features(dataloader, model, N, device, args):
          return features, input_tensors, labels
 
 def sampling_echograms_full(args):
-    path_to_echograms = paths.path_to_echograms()
+    # idx_2000 = np.random.choice(3000, size=2000, replace=False).tolist()
+    # sampler_2000 = []
+    # for i in range(5):
+    #     sampler_2000.append([samplers_train[i][idx] for idx in idx_2000])
+    # torch.save(sampler_2000, 'samplers_2000.pt')
     # path_to_echograms = "/Users/changkyu/Documents/GitHub/echogram/memmap/memmap_set"
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_3000.pt'))
+    # bg = torch.load(os.path.join(path_to_echograms, 'numpy_bg_2999.pt')) + \
+    #      torch.load(os.path.join(path_to_echograms, 'numpy_bg_5999.pt'))
+    # bg_idx = np.random.choice(np.arange(len(bg)), size=3000, replace=False)
+    # bg = [bg[idx] for idx in bg_idx]
+    #
+    # sbsh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_2999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_5999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_8999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_11999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_12667.pt'))
+    # sbsh01_idx = np.random.choice(np.arange(len(sbsh01)), size=3000, replace=False)
+    # sbsh01 = [sbsh01[idx] for idx in sbsh01_idx]
+    #
+    # sbsh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_2999.pt'))+\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_3079.pt'))
+    # sbsh27_idx = np.random.choice(np.arange(len(sbsh27)), size=3000, replace=False)
+    # sbsh27 = [sbsh27[idx] for idx in sbsh27_idx]
+    #
+    # sh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sh01_2999.pt'))+\
+    #        torch.load(os.path.join(path_to_echograms, 'numpy_sh01_4046.pt'))
+    # sh01_idx = np.random.choice(np.arange(len(sh01)), size=3000, replace=False)
+    # sh01 = [sh01[idx] for idx in sh01_idx]
+    #
+    # sh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sh27_2999.pt'))+\
+    #        torch.load(os.path.join(path_to_echograms, 'numpy_sh27_3549.pt'))
+    # sh27_idx = np.random.choice(np.arange(len(sh27)), size=3000, replace=False)
+    # sh27 = [sh27[idx] for idx in sh27_idx]
+    # samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
+    # torch.save(samplers_train, 'samplers_3000.pt')
+    # samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
+    # def sample_align(samplers):
+    #     num_samples = []
+    #     new_samplers = []
+    #     for i in range(len(samplers)):
+    #         num_samples.append(len(samplers[i]))
+    #     max_num_sample = np.min(num_samples)
+    #     print(max_num_sample)
+    #     for i in range(len(samplers)):
+    #         new_samplers.append(np.random.choice(samplers[i], size=max_num_sample, replace=False))
+    #     return new_samplers
+    path_to_echograms = paths.path_to_echograms()
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1000.pt'))
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_train = DatasetImg(
         samplers_train,
-        15000,
+        5000,
         args.sampler_probs,
         augmentation_function=augmentation,
         data_transform_function=data_transform)
     return dataset_train
 
-# bg = torch.load(os.path.join(path_to_echograms, 'numpy_bg_2999.pt')) + \
-#      torch.load(os.path.join(path_to_echograms, 'numpy_bg_5999.pt'))
-# bg_idx = np.random.choice(np.arange(len(bg)), size=3000, replace=False)
-# bg = [bg[idx] for idx in bg_idx]
-#
-# sbsh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_2999.pt')) +\
-#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_5999.pt')) +\
-#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_8999.pt')) +\
-#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_11999.pt')) +\
-#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_12667.pt'))
-# sbsh01_idx = np.random.choice(np.arange(len(sbsh01)), size=3000, replace=False)
-# sbsh01 = [sbsh01[idx] for idx in sbsh01_idx]
-#
-# sbsh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_2999.pt'))+\
-#          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_3079.pt'))
-# sbsh27_idx = np.random.choice(np.arange(len(sbsh27)), size=3000, replace=False)
-# sbsh27 = [sbsh27[idx] for idx in sbsh27_idx]
-#
-# sh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sh01_2999.pt'))+\
-#        torch.load(os.path.join(path_to_echograms, 'numpy_sh01_4046.pt'))
-# sh01_idx = np.random.choice(np.arange(len(sh01)), size=3000, replace=False)
-# sh01 = [sh01[idx] for idx in sh01_idx]
-#
-# sh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sh27_2999.pt'))+\
-#        torch.load(os.path.join(path_to_echograms, 'numpy_sh27_3549.pt'))
-# sh27_idx = np.random.choice(np.arange(len(sh27)), size=3000, replace=False)
-# sh27 = [sh27[idx] for idx in sh27_idx]
-# samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
-# torch.save(samplers_train, 'samplers_3000.pt')
-# samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
-# def sample_align(samplers):
-#     num_samples = []
-#     new_samplers = []
-#     for i in range(len(samplers)):
-#         num_samples.append(len(samplers[i]))
-#     max_num_sample = np.min(num_samples)
-#     print(max_num_sample)
-#     for i in range(len(samplers)):
-#         new_samplers.append(np.random.choice(samplers[i], size=max_num_sample, replace=False))
-#     return new_samplers
 
 def main(args):
     # fix random seeds
@@ -383,15 +388,18 @@ def main(args):
     model = model.double()
     model.to(device)
     cudnn.benchmark = True
-
     # create optimizer
-    optimizer = torch.optim.SGD(
+    # optimizer = torch.optim.SGD(
+    #     filter(lambda x: x.requires_grad, model.parameters()),
+    #     lr=args.lr,
+    #     momentum=args.momentum,
+    #     weight_decay=10**args.wd,
+    # )
+    optimizer = torch.optim.Adam(
         filter(lambda x: x.requires_grad, model.parameters()),
         lr=args.lr,
-        momentum=args.momentum,
-        weight_decay=10**args.wd,
+        weight_decay=10 ** args.wd,
     )
-
     criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint

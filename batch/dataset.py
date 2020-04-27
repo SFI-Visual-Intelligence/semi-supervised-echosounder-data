@@ -146,7 +146,7 @@ class Dataset():
 class DatasetImg():
 
     def __init__(self, samplers,
-                 n_samples = 15000,
+                 n_samples = 5000,
                  sampler_probs=None,
                  augmentation_function=None,
                  data_transform_function=None):
@@ -170,9 +170,8 @@ class DatasetImg():
 
     def __getitem__(self, index):
         #Select which sampler to use
-        rand_int = np.random.randint(self.n_samples)
-        sample_idx = rand_int//3000
-        img_idx = rand_int % 3000
+        sample_idx = index % 5
+        img_idx = index // 5
         data = self.samplers[sample_idx][img_idx]
         # Apply augmentation
         if self.augmentation_function is not None:
@@ -184,18 +183,6 @@ class DatasetImg():
 
     def __len__(self):
         return self.n_samples
-
-
-
-
-
-
-
-
-
-
-
-
 
 def get_crop(echogram, center_location, window_size, freqs):
     """
