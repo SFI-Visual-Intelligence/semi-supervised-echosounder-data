@@ -359,13 +359,13 @@ def sampling_echograms_full(args):
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
-    dataset_train = DatasetImg(
+    dataset_cp = DatasetImg(
         samplers_train,
         5000,
         args.sampler_probs,
         augmentation_function=augmentation,
         data_transform_function=data_transform)
-    return dataset_train
+    return dataset_cp
 
 
 def main(args):
@@ -435,12 +435,12 @@ def main(args):
     # # Create echogram sampling index
     print('Sample echograms.')
     end = time.time()
-    dataset_train = sampling_echograms_full(args)
-    dataloader_cp = torch.utils.data.DataLoader(dataset_train,
+    dataset_cp = sampling_echograms_full(args)
+    dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
                                                 shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
-                                                drop_last=True,
+                                                drop_last=False,
                                                 pin_memory=True)
     if args.verbose:
         print('Load dataset: {0:.2f} s'.format(time.time() - end))
@@ -459,7 +459,7 @@ def main(args):
         model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear(512*128) in original vgg)
                                                                                  # ReLU in .classfier() will follow later
         # get the features for the whole dataset
-        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_train), device=device, args=args)
+        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
 
         # cluster the features
         print('Cluster the features')
