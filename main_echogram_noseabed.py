@@ -57,7 +57,7 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--lr', default=0.05, type=float,
+    parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
@@ -123,9 +123,15 @@ def train(loader, model, crit, opt, epoch, device, args):
     model.train()
 
     # create an optimizer for the last fc layer
-    optimizer_tl = torch.optim.SGD(
+    # optimizer_tl = torch.optim.SGD(
+    #     model.top_layer.parameters(),
+    #     lr=args.lr,
+    #     weight_decay=10**args.wd,
+    # )
+    optimizer_tl = torch.optim.Adam(
         model.top_layer.parameters(),
         lr=args.lr,
+        betas=(0.5, 0.99),
         weight_decay=10**args.wd,
     )
 
@@ -391,17 +397,19 @@ def main(args):
     model.to(device)
     cudnn.benchmark = True
     # create optimizer
-    optimizer = torch.optim.SGD(
-        filter(lambda x: x.requires_grad, model.parameters()),
-        lr=args.lr,
-        momentum=args.momentum,
-        weight_decay=10**args.wd,
-    )
-    # optimizer = torch.optim.Adam(
+
+    # optimizer = torch.optim.SGD(
     #     filter(lambda x: x.requires_grad, model.parameters()),
     #     lr=args.lr,
-    #     weight_decay=10 ** args.wd,
+    #     momentum=args.momentum,
+    #     weight_decay=10**args.wd,
     # )
+    optimizer = torch.optim.Adam(
+        filter(lambda x: x.requires_grad, model.parameters()),
+        lr=args.lr,
+        betas= (0.5, 0.99),
+        weight_decay=10 ** args.wd,
+    )
     criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
