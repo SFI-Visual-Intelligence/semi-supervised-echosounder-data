@@ -170,8 +170,8 @@ class DatasetImg():
 
     def __getitem__(self, index):
         #Select which sampler to use
-        sample_idx = index % 5
-        img_idx = index // 5
+        sample_idx = index % len(self.samplers)
+        img_idx = index // len(self.samplers)
         data = self.samplers[sample_idx][img_idx]
         # Apply augmentation
         if self.augmentation_function is not None:
