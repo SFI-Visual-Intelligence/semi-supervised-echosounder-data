@@ -212,7 +212,7 @@ class Kmeans(object):
         self.xb = preprocess_features(data, pca=self.pca)
 
         # cluster the data
-        I, loss, D = run_kmeans(xb, self.k, verbose)
+        I, loss, D = run_kmeans(self.xb, self.k, verbose)
         self.images_dist_lists = [np.array(I), D]
         self.images_lists = [[] for i in range(self.k)]
         for i in range(len(data)):
