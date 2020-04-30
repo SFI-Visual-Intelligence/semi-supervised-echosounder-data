@@ -373,7 +373,7 @@ def main(args):
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
-    loss_collect = [[], [], []]
+    loss_collect = [[], [], [], []]
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
@@ -488,7 +488,8 @@ def main(args):
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(loss)
-        # loss_collect[2].append(accuracy_tr)
+        loss_collect[2].append(linear_svc.whole_score)
+        loss_collect[3].append(linear_svc.pair_score)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 
