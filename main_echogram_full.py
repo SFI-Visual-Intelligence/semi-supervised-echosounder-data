@@ -394,8 +394,8 @@ def main(args):
         # save patches per epochs
         cp_epoch_out = [deepcluster.xb, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
-        linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
 
+        linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Classify. accu.: {1:.3f} \n'
