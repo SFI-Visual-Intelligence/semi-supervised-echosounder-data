@@ -10,7 +10,7 @@ class SimpleClassifier:
         self.cp = cp
         self.num_classes = int(self.cp[4].max() +1)
         self.tr_size = tr_size
-        self.clf = LinearSVC(random_state=0, tol=1e-5)
+        self.clf = LinearSVC(random_state=0, tol=1e-5, dual=False)
         self.iteration = iteration
         self.whole_score = self.get_whole_score()
         self.pair_score = self.get_two_class_score()
@@ -35,7 +35,7 @@ class SimpleClassifier:
                 for i in range(self.iteration):
                     f_tr_full, f_te_full, y_tr_full, y_te_full = self.get_two_class_sample(self.tr_size, [class_one], [class_two])
                     self.clf.fit(f_tr_full, y_tr_full)
-                    mean_score.extend(self.clf.score(f_te_full, y_te_full))
+                    mean_score.append(self.clf.score(f_te_full, y_te_full))
                 pair_score.append(sum(mean_score)/len(mean_score))
             all_pair_score.append(pair_score)
         return all_pair_score
