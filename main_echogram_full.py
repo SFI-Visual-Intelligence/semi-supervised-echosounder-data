@@ -26,7 +26,7 @@ import paths
 import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
-
+from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
@@ -392,8 +392,8 @@ def main(args):
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
         # save patches per epochs
-
-        cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+        pca_features = preprocess_features(features_train, pca=args.pca)
+        cp_epoch_out = [pca_features, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
         linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
 
