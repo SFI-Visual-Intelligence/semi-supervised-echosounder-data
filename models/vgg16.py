@@ -19,16 +19,14 @@ class VGG(nn.Module):
         self.features = features
         # window size 128 / 2^5 = 4
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 4 * 4, 2048),
+            nn.Linear(512 * 4 * 4, 4096),
             nn.ReLU(True),
             nn.Dropout(0.5),
-            nn.Linear(2048, 512),
+            nn.Linear(4096, 4096),
             nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(512, 128),
         )
         self.top_layer = nn.Sequential(
-            nn.Linear(128, num_classes),
+            nn.Linear(4096, num_classes),
             nn.Softmax(dim=1),
         )
         self._initialize_weights()

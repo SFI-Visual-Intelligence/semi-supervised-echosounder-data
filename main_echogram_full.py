@@ -33,8 +33,11 @@ from batch.dataset import DatasetImg
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
+from classifier_linearSVC import SimpleClassifier
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
+
+
 # def cluster_acc(Y_pred, Y):
 #     assert Y_pred.size == Y.size
 #     D = max(Y_pred.max(), Y.max())+1
@@ -48,8 +51,6 @@ def parse_args():
     current_dir = os.getcwd()
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
 
-    parser.add_argument("--mode", default='client')
-    parser.add_argument("--port", default=52162)
     parser.add_argument('--arch', '-a', type=str, metavar='ARCH',
                         choices=['alexnet', 'vgg16', 'vgg16_tweak'], default='vgg16_tweak',
                         help='CNN architecture (default: vgg16)')
@@ -57,7 +58,7 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--lr', default=0.05, type=float,
+    parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
@@ -66,17 +67,16 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=2000,
+    parser.add_argument('--epochs', type=int, default=500,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=16, type=int,
+    parser.add_argument('--batch', default=256, type=int,
                         help='mini-batch size (default: 16)')
-    parser.add_argument('--pca', default=32, type=int,
+    parser.add_argument('--pca', default=256, type=int,
                         help='pca dimension (default: 16)')
-    parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
@@ -87,8 +87,6 @@ def parse_args():
                         help='window size')
     parser.add_argument('--partition', type=str, default='train_only',
                         help='echogram partition (tr/val/te) by year')
-    parser.add_argument('--iteration_train', type=int, default=1200,
-                        help='num_tr_iterations per one batch and epoch')
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
@@ -96,6 +94,11 @@ def parse_args():
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
+    # parser.add_argument('--iteration_train', type=int, default=1200,
+    #                     help='num_tr_iterations per one batch and epoch')
+    # parser.add_argument("--mode", default='client')
+    # parser.add_argument("--port", default=52162)
+    # parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     return parser.parse_args(args=[])
 
 def zip_img_label(img_tensors, labels):
@@ -123,9 +126,10 @@ def train(loader, model, crit, opt, epoch, device, args):
     model.train()
 
     # create an optimizer for the last fc layer
-    optimizer_tl = torch.optim.SGD(
+    optimizer_tl = torch.optim.Adam(
         model.top_layer.parameters(),
         lr=args.lr,
+        betas=(0.5, 0.99),
         weight_decay=10**args.wd,
     )
 
@@ -163,8 +167,6 @@ def train(loader, model, crit, opt, epoch, device, args):
         loss = crit(output, pseudo_target_var.long())
 
         # record loss
-        # print('loss :', loss)
-        # print('input_tensor.size(0) :', input_tensor.size(0))
         losses.update(loss.item(), input_tensor.size(0))
 
         # compute gradient and do SGD step
@@ -184,73 +186,19 @@ def train(loader, model, crit, opt, epoch, device, args):
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
 
-        input_tensors.append(input_tensor.data.cpu().numpy())
-        pseudo_targets.append(pseudo_target.data.cpu().numpy())
-        outputs.append(output.data.cpu().numpy())
-        labels.append(label)
-        imgidxes.append(imgidx)
+        # input_tensors.append(input_tensor.data.cpu().numpy())
+        # pseudo_targets.append(pseudo_target.data.cpu().numpy())
+        # outputs.append(output.data.cpu().numpy())
+        # labels.append(label)
+        # imgidxes.append(imgidx)
 
-    input_tensors = np.concatenate(input_tensors, axis=0)
-    pseudo_targets = np.concatenate(pseudo_targets, axis=0)
-    outputs = np.concatenate(outputs, axis=0)
-    labels = np.concatenate(labels, axis=0)
-    imgidxes = np.concatenate(imgidxes, axis=0)
+    # input_tensors = np.concatenate(input_tensors, axis=0)
+    # pseudo_targets = np.concatenate(pseudo_targets, axis=0)
+    # outputs = np.concatenate(outputs, axis=0)
+    # labels = np.concatenate(labels, axis=0)
+    # imgidxes = np.concatenate(imgidxes, axis=0)
     tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses.avg, imgidxes]
-
     return losses.avg, tr_epoch_out
-    # return losses.avg
-
-def validation(loader, model, crit, epoch, device, args):
-    """Training of the CNN.
-        Args:
-            loader (torch.utils.data.DataLoader): Data loader
-            model (nn.Module): CNN
-            crit (torch.nn): loss
-            opt (torch.optim.SGD): optimizer for every parameters with True
-                                   requires_grad in model except top layer
-            epoch (int)
-    """
-    batch_time = AverageMeter()
-    val_losses = AverageMeter()
-    data_time = AverageMeter()
-
-    # switch to train mode
-    model.eval()
-    end = time.time()
-    input_tensors = []
-    labels = []
-    outputs = []
-    with torch.no_grad():
-        for i, (input_tensor, label) in enumerate(loader):
-            data_time.update(time.time() - end)
-            input_var = torch.autograd.Variable(input_tensor.to(device))
-            # target_var = torch.autograd.Variable(target.to(device,  non_blocking=True))
-
-            output = model(input_var)
-            # val_loss = crit(output, target_var.long())
-
-            # record loss
-            # val_losses.update(val_loss.item(), input_tensor.size(0))
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            # if args.verbose and (i % 10) == 0:
-            #     print('Epoch: [{0}][{1}/{2}]\t\t'
-            #           'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-            #           'Val_Loss: {val_loss.val:.4f} ({val_loss.avg:.4f})'
-            #           .format(epoch, i, len(loader), batch_time=batch_time, val_loss=val_losses))
-
-            input_tensors.append(input_tensor.data.cpu().numpy())
-            outputs.append(output.data.cpu().numpy())
-            labels.append(label)
-
-        input_tensors = np.concatenate(input_tensors, axis=0)
-        labels = np.concatenate(labels, axis=0)
-        outputs = np.concatenate(outputs, axis=0)
-        val_epoch_out = [input_tensors, labels, outputs, val_losses]
-        return val_losses.avg, val_epoch_out
-        # return val_epoch_out
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -261,12 +209,7 @@ def compute_features(dataloader, model, N, device, args):
     # discard the label information in the dataloader
     input_tensors = []
     labels = []
-    # center_location_heights = []
-    # center_location_widths = []
-    # ecnames = []
-    # labelmaps = []
     with torch.no_grad():
-         # for i, (input_tensor, label, center_location, ecname, labelmap) in enumerate(dataloader):
          for i, (input_tensor, label) in enumerate(dataloader):
             input_tensor.double()
             input_var = torch.autograd.Variable(input_tensor.to(device))
@@ -293,18 +236,8 @@ def compute_features(dataloader, model, N, device, args):
 
             input_tensors.append(input_tensor.data.cpu().numpy())
             labels.append(label.data.cpu().numpy())
-            # center_location_heights.append(center_location[0].data.cpu().numpy())
-            # center_location_widths.append(center_location[1].data.cpu().numpy())
-            # ecnames.append(ecname)
-            # labelmaps.append(labelmap.data.cpu().numpy())
-
          input_tensors = np.concatenate(input_tensors, axis=0)
          labels = np.concatenate(labels, axis=0)
-         # center_location_heights = np.concatenate(center_location_heights, axis=0)
-         # center_location_widths = np.concatenate(center_location_widths, axis=0)
-         # ecnames = np.concatenate(ecnames, axis=0)
-         # labelmaps = np.concatenate(labelmaps, axis=0)
-         # return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
          return features, input_tensors, labels
 
 def sampling_echograms_full(args):
@@ -388,18 +321,12 @@ def main(args):
     model = model.double()
     model.to(device)
     cudnn.benchmark = True
-    # create optimizer
-    optimizer = torch.optim.SGD(
+    optimizer = torch.optim.Adam(
         filter(lambda x: x.requires_grad, model.parameters()),
         lr=args.lr,
-        momentum=args.momentum,
-        weight_decay=10**args.wd,
+        betas=(0.5, 0.99),
+        weight_decay=10 ** args.wd,
     )
-    # optimizer = torch.optim.Adam(
-    #     filter(lambda x: x.requires_grad, model.parameters()),
-    #     lr=args.lr,
-    #     weight_decay=10 ** args.wd,
-    # )
     criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
@@ -428,9 +355,6 @@ def main(args):
 
     # creating cluster assignments log
     cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
-
-    # load dataset (initial echograms)
-    window_size = [args.window_dim, args.window_dim]
 
     # # Create echogram sampling index
     print('Sample echograms.')
@@ -469,9 +393,18 @@ def main(args):
 
         # save patches per epochs
 
+        cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+                        labels_train]
+        linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
+
+        if args.verbose:
+            print('###### Epoch [{0}] ###### \n'
+                  'Classify. accu.: {1:.3f} \n'
+                  'Pairwise classify. accu: {2:.3f} \n'
+                  .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
+
         if ((epoch+1) % args.save_epoch == 0):
             end = time.time()
-            cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train]
             with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
             print('Feature save time: {0:.2f} s'.format(time.time() - end))
@@ -485,8 +418,6 @@ def main(args):
         img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
                                                   img_label_pair_train)  # Reassigned pseudolabel
-        # ((img[imgidx], label[imgidx]), pseudolabel, imgidx)
-        # N = len(imgidx)
 
         # uniformly sample per target
         sampler_train = UnifLabelSampler(int(len(train_dataset)),
@@ -522,15 +453,14 @@ def main(args):
             loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
         print('Train time: {0:.2f} s'.format(time.time() - end))
 
-
-        if ((epoch+1) % args.save_epoch == 0):
-            end = time.time()
-            with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
-                pickle.dump(tr_epoch_out, f)
-            print('Save train time: {0:.2f} s'.format(time.time() - end))
+        # if ((epoch+1) % args.save_epoch == 0):
+        #     end = time.time()
+        #     with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
+        #         pickle.dump(tr_epoch_out, f)
+        #     print('Save train time: {0:.2f} s'.format(time.time() - end))
 
         # Accuracy with training set (output vs. pseudo label)
-        accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
+        # accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
 
         # print log
         if args.verbose:
@@ -538,8 +468,7 @@ def main(args):
                   'Time: {1:.3f} s\n'
                   'Clustering loss: {2:.3f} \n'
                   'ConvNet tr_loss: {3:.3f} \n'
-                  'ConvNet tr_acc: {4:.3f} \n'
-                  .format(epoch, time.time() - end, clustering_loss, loss, accuracy_tr))
+                  .format(epoch, time.time() - end, clustering_loss, loss))
 
             try:
                 nmi = normalized_mutual_info_score(
@@ -559,7 +488,7 @@ def main(args):
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(loss)
-        loss_collect[2].append(accuracy_tr)
+        # loss_collect[2].append(accuracy_tr)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 

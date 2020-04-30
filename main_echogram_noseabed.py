@@ -33,6 +33,7 @@ from batch.dataset import DatasetImg
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
+from classifier_linearSVC import FeatureLoad
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
 # def cluster_acc(Y_pred, Y):
