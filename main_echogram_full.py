@@ -399,7 +399,7 @@ def main(args):
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Classify. accu.: {1:.3f} \n'
-                  'Pairwise classify. accu: {2:.3f} \n'
+                  'Pairwise classify. accu: {2} \n'
                   .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
 
         if ((epoch+1) % args.save_epoch == 0):
