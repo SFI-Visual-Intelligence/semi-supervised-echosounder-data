@@ -392,8 +392,7 @@ def main(args):
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
         # save patches per epochs
-        pca_features = preprocess_features(features_train, pca=args.pca)
-        cp_epoch_out = [pca_features, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+        cp_epoch_out = [deepcluster.xb, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
         linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
 
