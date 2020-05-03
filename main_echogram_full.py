@@ -186,19 +186,21 @@ def train(loader, model, crit, opt, epoch, device, args):
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
 
-        # input_tensors.append(input_tensor.data.cpu().numpy())
-        # pseudo_targets.append(pseudo_target.data.cpu().numpy())
-        # outputs.append(output.data.cpu().numpy())
-        # labels.append(label)
-        # imgidxes.append(imgidx)
+        input_tensors.append(input_tensor.data.cpu().numpy())
+        pseudo_targets.append(pseudo_target.data.cpu().numpy())
+        outputs.append(output.data.cpu().numpy())
+        labels.append(label)
+        imgidxes.append(imgidx)
 
     # input_tensors = np.concatenate(input_tensors, axis=0)
     # pseudo_targets = np.concatenate(pseudo_targets, axis=0)
     # outputs = np.concatenate(outputs, axis=0)
     # labels = np.concatenate(labels, axis=0)
     # imgidxes = np.concatenate(imgidxes, axis=0)
-    tr_epoch_out = [input_tensors.cpu().numpy(), pseudo_targets.cpu().numpy(), outputs.cpu().numpy(), labels, losses.avg, imgidxes]
-    return losses.avg, tr_epoch_out
+    # tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses.avg, imgidxes]
+    # return losses.avg, tr_epoch_out
+    return losses.avg
+
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -449,7 +451,8 @@ def main(args):
         # train network with clusters as pseudo-labels
         end = time.time()
         with torch.autograd.set_detect_anomaly(True):
-            loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
+            # loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
+            loss = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
         print('Train time: {0:.2f} s'.format(time.time() - end))
 
         # if ((epoch+1) % args.save_epoch == 0):
