@@ -192,6 +192,12 @@ def train(loader, model, crit, opt, epoch, device, args):
         labels.append(label)
         imgidxes.append(imgidx)
 
+        input_tensors = []
+        labels = []
+        pseudo_targets = []
+        outputs = []
+        imgidxes = []
+
     # input_tensors = np.concatenate(input_tensors, axis=0)
     # pseudo_targets = np.concatenate(pseudo_targets, axis=0)
     # outputs = np.concatenate(outputs, axis=0)
