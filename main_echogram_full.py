@@ -74,9 +74,9 @@ def parse_args():
     parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=128, type=int,
-                        help='mini-batch size (default: 16)')
+                        help='mini-batch size (default: 256)')
     parser.add_argument('--pca', default=128, type=int,
-                        help='pca dimension (default: 16)')
+                        help='pca dimension (default: 256)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
@@ -197,7 +197,7 @@ def train(loader, model, crit, opt, epoch, device, args):
     # outputs = np.concatenate(outputs, axis=0)
     # labels = np.concatenate(labels, axis=0)
     # imgidxes = np.concatenate(imgidxes, axis=0)
-    tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses.avg, imgidxes]
+    tr_epoch_out = [input_tensors.cpu().numpy(), pseudo_targets.cpu().numpy(), outputs.cpu().numpy(), labels, losses.avg, imgidxes]
     return losses.avg, tr_epoch_out
 
 def compute_features(dataloader, model, N, device, args):
