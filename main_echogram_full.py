@@ -130,7 +130,7 @@ def train(loader, model, crit, opt, epoch, device, args):
     model.train()
 
     # create an optimizer for the last fc layer
-    if args.optimzer is 'Adam':
+    if args.optimizer is 'Adam':
         print('Adam optimizer: top_layer')
         optimizer_tl = torch.optim.Adam(
             model.top_layer.parameters(),
@@ -344,7 +344,7 @@ def main(args):
     model.to(device)
     cudnn.benchmark = True
 
-    if args.optimzer is 'Adam':
+    if args.optimizer is 'Adam':
         print('Adam optimizer: conv')
         optimizer = torch.optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
