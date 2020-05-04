@@ -58,7 +58,7 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--lr', default=1e-3, type=float,
+    parser.add_argument('--lr', default=5e-4, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
