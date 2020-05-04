@@ -58,8 +58,11 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--lr', default=5e-4, type=float,
+    parser.add_argument('--lr_Adam', default=1e-3, type=float,
                         help='learning rate (default: 0.05)')
+    parser.add_argument('--lr_SGD', default=5e-3, type=float,
+                        help='learning rate (default: 0.05)')
+    parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
     parser.add_argument('--reassign', type=float, default=1,
@@ -94,7 +97,6 @@ def parse_args():
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
-    parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
 
@@ -134,7 +136,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         print('Adam optimizer: top_layer')
         optimizer_tl = torch.optim.Adam(
             model.top_layer.parameters(),
-            lr=args.lr,
+            lr=args.lr_Adam,
             betas=(0.5, 0.99),
             weight_decay=10**args.wd,
         )
@@ -142,7 +144,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         print('SGD optimizer: top_layer')
         optimizer_tl = torch.optim.SGD(
             model.top_layer.parameters(),
-            lr=args.lr,
+            lr=args.lr_SGD,
             momentum= args.momentum,
             weight_decay=10**args.wd,
         )
@@ -348,7 +350,7 @@ def main(args):
         print('Adam optimizer: conv')
         optimizer = torch.optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
-            lr=args.lr,
+            lr=args.lr_Adam,
             betas=(0.5, 0.99),
             weight_decay=10 ** args.wd,
         )
@@ -356,7 +358,7 @@ def main(args):
         print('SGD optimizer: conv')
         optimizer = torch.optim.SGD(
             filter(lambda x: x.requires_grad, model.parameters()),
-            lr=args.lr,
+            lr=args.lr_SGD,
             momentum=args.momentum,
             weight_decay=10 ** args.wd,
         )
