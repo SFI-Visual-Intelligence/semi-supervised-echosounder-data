@@ -95,7 +95,7 @@ def parse_args():
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
-    parser.add_argument('--optimizer', '-a', type=str, metavar='OPTIM',
+    parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
 
     # parser.add_argument('--iteration_train', type=int, default=1200,
