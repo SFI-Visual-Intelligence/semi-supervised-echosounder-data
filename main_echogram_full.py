@@ -497,11 +497,11 @@ def main(args):
                     'optimizer' : optimizer.state_dict()},
                    os.path.join(args.exp, 'checkpoint.pth.tar'))
 
-        print('epoch: ', type(epoch), epoch)
-        print('loss: ', type(loss), loss)
-        print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
-        print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
-        print('clustering_loss: ', type(clustering_loss), clustering_loss)
+        # print('epoch: ', type(epoch), epoch)
+        # print('loss: ', type(loss), loss)
+        # print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
+        # print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
+        # print('clustering_loss: ', type(clustering_loss), clustering_loss)
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(loss)
