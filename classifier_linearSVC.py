@@ -21,7 +21,7 @@ class SimpleClassifier:
             f_tr_full, f_te_full, y_tr_full, y_te_full = self.get_training_sample(self.tr_size)
             self.clf.fit(f_tr_full, y_tr_full)
             mean_score.append(self.clf.score(f_te_full, y_te_full))
-        return sum(mean_score)/len(mean_score)
+        return (sum(mean_score)/len(mean_score)).astype('float32')
 
     def get_two_class_score(self):
         class_list = list(range(self.num_classes))
@@ -36,7 +36,7 @@ class SimpleClassifier:
                     f_tr_full, f_te_full, y_tr_full, y_te_full = self.get_two_class_sample(self.tr_size, [class_one], [class_two])
                     self.clf.fit(f_tr_full, y_tr_full)
                     mean_score.append(self.clf.score(f_te_full, y_te_full))
-                pair_score.append(sum(mean_score)/len(mean_score))
+                pair_score.append((sum(mean_score)/len(mean_score)).astype('float32'))
             all_pair_score.append(pair_score)
         return all_pair_score
 
