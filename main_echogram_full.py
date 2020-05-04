@@ -399,6 +399,8 @@ def main(args):
         clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
+        clustering_loss = clustering_loss.cpu().numpy()
+
         # save patches per epochs
         cp_epoch_out = [deepcluster.xb, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
