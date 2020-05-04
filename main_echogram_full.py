@@ -381,8 +381,8 @@ def main(args):
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
-    loss_collect = [[], [], [], []]
-
+    loss_collect = [[], [], [], [], []]
+    nmi_save = []
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
 
@@ -483,7 +483,10 @@ def main(args):
                     clustering.arrange_clustering(deepcluster.images_lists),
                     clustering.arrange_clustering(cluster_log.data[-1])
                 )
+                nmi_save.append(nmi)
                 print('NMI against previous assignment: {0:.3f}'.format(nmi))
+                with open("./nmi_collect.pickle", "wb") as ff:
+                    pickle.dump(nmi_save, ff)
             except IndexError:
                 pass
             print('####################### \n')
@@ -498,6 +501,7 @@ def main(args):
         loss_collect[1].append(loss)
         loss_collect[2].append(linear_svc.whole_score)
         loss_collect[3].append(linear_svc.pair_score)
+        loss_collect[4].append(clustering_loss)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 
