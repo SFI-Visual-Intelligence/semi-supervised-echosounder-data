@@ -73,7 +73,7 @@ def parse_args():
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=128, type=int,
+    parser.add_argument('--batch', default=256, type=int,
                         help='mini-batch size (default: 256)')
     parser.add_argument('--pca', default=128, type=int,
                         help='pca dimension (default: 256)')
@@ -506,6 +506,7 @@ def main(args):
         loss_collect[4].append(clustering_loss)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
+
 
         # save cluster assignments
         cluster_log.log(deepcluster.images_lists)
