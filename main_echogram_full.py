@@ -95,6 +95,9 @@ def parse_args():
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
+    parser.add_argument('--optimizer', '-a', type=str, metavar='OPTIM',
+                        choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
+
     # parser.add_argument('--iteration_train', type=int, default=1200,
     #                     help='num_tr_iterations per one batch and epoch')
     # parser.add_argument("--mode", default='client')
@@ -127,18 +130,22 @@ def train(loader, model, crit, opt, epoch, device, args):
     model.train()
 
     # create an optimizer for the last fc layer
-    # optimizer_tl = torch.optim.Adam(
-    #     model.top_layer.parameters(),
-    #     lr=args.lr,
-    #     betas=(0.5, 0.99),
-    #     weight_decay=10**args.wd,
-    # )
-    optimizer_tl = torch.optim.SGD(
-        model.top_layer.parameters(),
-        lr=args.lr,
-        momentum= args.momentum,
-        weight_decay=10**args.wd,
-    )
+    if args.optimzer is 'Adam':
+        print('Adam optimizer: top_layer')
+        optimizer_tl = torch.optim.Adam(
+            model.top_layer.parameters(),
+            lr=args.lr,
+            betas=(0.5, 0.99),
+            weight_decay=10**args.wd,
+        )
+    else:
+        print('SGD optimizer: top_layer')
+        optimizer_tl = torch.optim.SGD(
+            model.top_layer.parameters(),
+            lr=args.lr,
+            momentum= args.momentum,
+            weight_decay=10**args.wd,
+        )
 
     end = time.time()
     input_tensors = []
@@ -336,18 +343,24 @@ def main(args):
     model = model.double()
     model.to(device)
     cudnn.benchmark = True
-    # optimizer = torch.optim.Adam(
-    #     filter(lambda x: x.requires_grad, model.parameters()),
-    #     lr=args.lr,
-    #     betas=(0.5, 0.99),
-    #     weight_decay=10 ** args.wd,
-    # )
-    optimizer = torch.optim.SGD(
-        filter(lambda x: x.requires_grad, model.parameters()),
-        lr=args.lr,
-        momentum= args.momentum,
-        weight_decay=10 ** args.wd,
-    )
+
+    if args.optimzer is 'Adam':
+        print('Adam optimizer: conv')
+        optimizer = torch.optim.Adam(
+            filter(lambda x: x.requires_grad, model.parameters()),
+            lr=args.lr,
+            betas=(0.5, 0.99),
+            weight_decay=10 ** args.wd,
+        )
+    else:
+        print('SGD optimizer: conv')
+        optimizer = torch.optim.SGD(
+            filter(lambda x: x.requires_grad, model.parameters()),
+            lr=args.lr,
+            momentum=args.momentum,
+            weight_decay=10 ** args.wd,
+        )
+
     criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
@@ -413,8 +426,7 @@ def main(args):
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
         # save patches per epochs
-        xb = deepcluster.xb.cpu().numpy()
-        cp_epoch_out = [xb, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+        cp_epoch_out = [deepcluster.xb, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
 
         linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
