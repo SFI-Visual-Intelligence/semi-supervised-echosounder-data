@@ -94,11 +94,12 @@ def parse_args():
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
+    parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     # parser.add_argument('--iteration_train', type=int, default=1200,
     #                     help='num_tr_iterations per one batch and epoch')
     # parser.add_argument("--mode", default='client')
     # parser.add_argument("--port", default=52162)
-    # parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
+
     return parser.parse_args(args=[])
 
 def zip_img_label(img_tensors, labels):
@@ -126,10 +127,16 @@ def train(loader, model, crit, opt, epoch, device, args):
     model.train()
 
     # create an optimizer for the last fc layer
-    optimizer_tl = torch.optim.Adam(
+    # optimizer_tl = torch.optim.Adam(
+    #     model.top_layer.parameters(),
+    #     lr=args.lr,
+    #     betas=(0.5, 0.99),
+    #     weight_decay=10**args.wd,
+    # )
+    optimizer_tl = torch.optim.SGD(
         model.top_layer.parameters(),
         lr=args.lr,
-        betas=(0.5, 0.99),
+        momentum= args.momentum,
         weight_decay=10**args.wd,
     )
 
@@ -329,10 +336,16 @@ def main(args):
     model = model.double()
     model.to(device)
     cudnn.benchmark = True
-    optimizer = torch.optim.Adam(
+    # optimizer = torch.optim.Adam(
+    #     filter(lambda x: x.requires_grad, model.parameters()),
+    #     lr=args.lr,
+    #     betas=(0.5, 0.99),
+    #     weight_decay=10 ** args.wd,
+    # )
+    optimizer = torch.optim.SGD(
         filter(lambda x: x.requires_grad, model.parameters()),
         lr=args.lr,
-        betas=(0.5, 0.99),
+        momentum= args.momentum,
         weight_decay=10 ** args.wd,
     )
     criterion = nn.CrossEntropyLoss()
