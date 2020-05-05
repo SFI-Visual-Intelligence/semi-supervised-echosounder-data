@@ -503,9 +503,9 @@ def main(args):
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
-                  'Clustering loss: {2:.3f} \n'
-                  'ConvNet tr_loss: {3:.3f} \n'
-                  .format(epoch, time.time() - end, clustering_loss, loss))
+                  'ConvNet tr_loss: {2:.3f} \n'
+                  # 'Clustering loss: {3:.3f} \n'
+                  .format(epoch, time.time() - end, loss))# clustering_loss
 
             try:
                 nmi = normalized_mutual_info_score(
@@ -536,7 +536,7 @@ def main(args):
         loss_collect[1].append(loss)
         loss_collect[2].append(linear_svc.whole_score)
         loss_collect[3].append(linear_svc.pair_score)
-        loss_collect[4].append(clustering_loss)
+        # loss_collect[4].append(clustering_loss)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 
