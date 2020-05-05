@@ -175,7 +175,8 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     flat_config = faiss.GpuIndexFlatConfig()
     flat_config.useFloat16 = False
     flat_config.device = 0
-    index = faiss.GpuIndexFlatL2(res, d, flat_config)
+    index = faiss.GpuIndexIP(res, d, flat_config)  # Inner product between samples
+    # index = faiss.GpuIndexFlatL2(res, d, flat_config)
 
     # perform the training
     clus.train(x, index)
