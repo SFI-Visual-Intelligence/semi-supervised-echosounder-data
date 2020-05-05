@@ -76,8 +76,8 @@ def parse_args():
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=32, type=int,
-                        help='mini-batch size (default: 128)')
+    parser.add_argument('--batch', default=16, type=int,
+                        help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=128, type=int,
                         help='pca dimension (default: 128)')
     parser.add_argument('--checkpoints', type=int, default=200,
