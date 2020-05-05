@@ -159,8 +159,16 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     Returns:
         list: ids of data in each cluster
     """
-    n_data, d = x.shape
+    nan_location = np.isnan(x)
+    inf_location = np.isinf(x)
+    if not np.allclose(nan_location, 0):
+        print('NaN found. Impute Zero. Count: ', np.sum(nan_location))
+        x[nan_location] = 0
+    if not np.allclose(inf_location, 0):
+        print('Inf found. Impute Zero. Count: ', np.sum(inf_location))
+        x[inf_location] = 0
 
+    n_data, d = x.shape
     # faiss implementation of k-means
     clus = faiss.Clustering(d, nmb_clusters)
 
