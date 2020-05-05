@@ -99,7 +99,6 @@ def preprocess_features(npdata, pca):
 
     return npdata
 
-
 def cluster_assign(images_lists, dataset):
     # clustering.cluster_assign(deepcluster.images_lists, img_label_pair_train)
     """Creates a dataset from clustering, with clusters as labels.
@@ -148,12 +147,13 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     # clus.min_points_per_centroid = 5
     clus.max_points_per_centroid = 100000000
     res = faiss.StandardGpuResources()
-    # flat_config = faiss.GpuIndexFlatConfig()
-    flat_config = faiss.GpuIndexIVFFlatConfig()   # IVF
+    flat_config = faiss.GpuIndexFlatConfig()
+    # flat_config = faiss.GpuIndexIVFFlatConfig()   # IVF
     flat_config.useFloat16 = False
     flat_config.device = 0
-    index = faiss.GpuIndexIVFFlat(res, d, nmb_clusters, faiss.METRIC_L2, flat_config)  # faiss.Metric_INNER_PRODUCT,
-    # index = faiss.GpuIndexFlatL2(res, d, flat_config)     # index = faiss.GpuIndexIP(res, d, flat_config)  # Inner product between samples
+    # index = faiss.GpuIndexIVFFlat(res, d, nmb_clusters, faiss.METRIC_L2, flat_config)  # faiss.Metric_INNER_PRODUCT,
+    index = faiss.GpuIndexFlatL2(res, d, flat_config)
+    # index = faiss.GpuIndexIP(res, d, flat_config)  # Inner product between samples
     # perform the training
     clus.train(x, index)
     D, I = index.search(x, 1)
