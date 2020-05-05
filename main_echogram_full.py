@@ -424,7 +424,8 @@ def main(args):
         # cluster the features
         print('Cluster the features')
         end = time.time()
-        clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
+        # clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
+        deepcluster.cluster(features_train, verbose=args.verbose)
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
         # save patches per epochs

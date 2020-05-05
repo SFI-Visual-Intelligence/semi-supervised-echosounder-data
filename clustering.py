@@ -172,19 +172,20 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     clus.niter = 20
     clus.max_points_per_centroid = 10000000
     res = faiss.StandardGpuResources()
-    flat_config = faiss.GpuIndexFlatConfig()
+    # flat_config = faiss.GpuIndexFlatConfig()
+    flat_config = faiss.GpuIndexIVFFlatConfig()   # IVF
     flat_config.useFloat16 = False
     flat_config.device = 0
-    index = faiss.GpuIndexIP(res, d, flat_config)  # Inner product between samples
-    # index = faiss.GpuIndexFlatL2(res, d, flat_config)
-
+    index = faiss.GpuIndexIVFFlat(res, d, nmb_clusters, faiss.METRIC_L2, flat_config)  # faiss.Metric_INNER_PRODUCT,
+    # index = faiss.GpuIndexFlatL2(res, d, flat_config)     # index = faiss.GpuIndexIP(res, d, flat_config)  # Inner product between samples
     # perform the training
     clus.train(x, index)
     D, I = index.search(x, 1)
-    losses = faiss.vector_to_array(clus.obj)
-    if verbose:
-        print('k-means loss evolution: {0}'.format(losses))
-    return [int(n[0]) for n in I], losses[-1], np.array([(d[0]) for d in D])
+    # losses = faiss.vector_to_array(clus.obj)
+    # if verbose:
+    #     print('k-means loss evolution: {0}'.format(losses))
+    # return [int(n[0]) for n in I], losses, np.array([(d[0]) for d in D])
+    return [int(n[0]) for n in I], np.array([(d[0]) for d in D])
 
 
 def arrange_clustering(images_lists):
@@ -213,15 +214,15 @@ class Kmeans(object):
         self.xb = preprocess_features(data, pca=self.pca)
 
         # cluster the data
-        I, loss, D = run_kmeans(self.xb, self.k, verbose)
+        # I, loss, D = run_kmeans(self.xb, self.k, verbose)
+        I, D = run_kmeans(self.xb, self.k, verbose)
         self.images_dist_lists = [np.array(I), D]
         self.images_lists = [[] for i in range(self.k)]
         for i in range(len(data)):
             self.images_lists[I[i]].append(i)
         if verbose:
             print('k-means time: {0:.0f} s'.format(time.time() - end))
-
-        return loss
+        # return loss
 
 
 def make_adjacencyW(I, D, sigma):
