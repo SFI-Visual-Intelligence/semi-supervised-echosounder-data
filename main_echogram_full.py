@@ -56,7 +56,7 @@ def parse_args():
                         help='CNN architecture (default: vgg16)')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--lr_Adam', default=1e-3, type=float,
                         help='learning rate (default: 0.05)')
@@ -76,7 +76,7 @@ def parse_args():
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=128, type=int,
+    parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 128)')
     parser.add_argument('--pca', default=128, type=int,
                         help='pca dimension (default: 128)')
@@ -424,8 +424,8 @@ def main(args):
         # cluster the features
         print('Cluster the features')
         end = time.time()
-        # clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
-        deepcluster.cluster(features_train, verbose=args.verbose)
+        clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
+        # deepcluster.cluster(features_train, verbose=args.verbose)
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
         # save patches per epochs
@@ -504,8 +504,8 @@ def main(args):
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
                   'ConvNet tr_loss: {2:.3f} \n'
-                  # 'Clustering loss: {3:.3f} \n'
-                  .format(epoch, time.time() - end, loss))# clustering_loss
+                  'Clustering loss: {3:.3f} \n'
+                  .format(epoch, time.time() - end, loss, clustering_loss))
 
             try:
                 nmi = normalized_mutual_info_score(
@@ -536,7 +536,7 @@ def main(args):
         loss_collect[1].append(loss)
         loss_collect[2].append(linear_svc.whole_score)
         loss_collect[3].append(linear_svc.pair_score)
-        # loss_collect[4].append(clustering_loss)
+        loss_collect[4].append(clustering_loss)
         with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 
