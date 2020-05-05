@@ -136,15 +136,6 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     Returns:
         list: ids of data in each cluster
     """
-    nan_location = np.isnan(x)
-    inf_location = np.isinf(x)
-    if not np.allclose(nan_location, 0):
-        print('NaN found. Impute Zero. Count: ', np.sum(nan_location))
-        x[nan_location] = 0
-    if not np.allclose(inf_location, 0):
-        print('Inf found. Impute Zero. Count: ', np.sum(inf_location))
-        x[inf_location] = 0
-
     n_data, d = x.shape
     # faiss implementation of k-means
     clus = faiss.Clustering(d, nmb_clusters)
@@ -154,8 +145,8 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     # from an epoch to another.
     clus.seed = np.random.randint(1234)
     clus.niter = 20
-    clus.min_points_per_centroid = 5
-    clus.max_points_per_centroid = 10000
+    # clus.min_points_per_centroid = 5
+    clus.max_points_per_centroid = 100000000
     res = faiss.StandardGpuResources()
     # flat_config = faiss.GpuIndexFlatConfig()
     flat_config = faiss.GpuIndexIVFFlatConfig()   # IVF
