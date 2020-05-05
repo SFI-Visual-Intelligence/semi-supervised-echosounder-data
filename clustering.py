@@ -136,6 +136,7 @@ def run_kmeans(x, nmb_clusters, verbose=False):
         list: ids of data in each cluster
     """
     n_data, d = x.shape
+    print(n_data, d)
     # faiss implementation of k-means
     clus = faiss.Clustering(d, nmb_clusters)
 
@@ -155,7 +156,8 @@ def run_kmeans(x, nmb_clusters, verbose=False):
     index = faiss.GpuIndexFlatL2(res, d, flat_config)
     # index = faiss.GpuIndexIP(res, d, flat_config)  # Inner product between samples
     # perform the training
-    clus.train(x, index)
+    clus.train(n_data, x, index)
+    # clus.train(x, index)
     D, I = index.search(x, 1)
     losses = faiss.vector_to_array(clus.obj)
     if verbose:
