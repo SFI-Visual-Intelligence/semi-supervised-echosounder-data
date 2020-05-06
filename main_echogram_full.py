@@ -56,7 +56,7 @@ def parse_args():
                         help='CNN architecture (default: vgg16)')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=128,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--lr_Adam', default=1e-3, type=float,
                         help='learning rate (default: 0.05)')
@@ -78,7 +78,7 @@ def parse_args():
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 16)')
-    parser.add_argument('--pca', default=128, type=int,
+    parser.add_argument('--pca', default=64, type=int,
                         help='pca dimension (default: 128)')
     parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
@@ -424,19 +424,26 @@ def main(args):
         nan_location = np.isnan(features_train)
         inf_location = np.isinf(features_train)
         if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+            print('Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
             print('Skip epoch ', epoch)
             continue
 
         # cluster the features
         print('Cluster the features')
         end = time.time()
-        clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
+        clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
         # deepcluster.cluster(features_train, verbose=args.verbose)
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
+        nan_location = np.isnan(pca_features)
+        inf_location = np.isinf(pca_features)
+        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+            print('Skip epoch ', epoch)
+            continue
+
         # save patches per epochs
-        cp_epoch_out = [deepcluster.xb, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+        cp_epoch_out = [pca_features, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
 
         linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)

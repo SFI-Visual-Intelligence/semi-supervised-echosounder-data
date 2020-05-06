@@ -187,19 +187,24 @@ class Kmeans(object):
         end = time.time()
 
         # PCA-reducing, whitening and L2-normalization
-        self.xb = preprocess_features(data, pca=self.pca)
-
-        # cluster the data
-        I, loss, D = run_kmeans(self.xb, self.k, verbose)
-        # I, D = run_kmeans(self.xb, self.k, verbose)
-        self.images_dist_lists = [np.array(I), D]
-        self.images_lists = [[] for i in range(self.k)]
-        for i in range(len(data)):
-            self.images_lists[I[i]].append(i)
-        if verbose:
-            print('k-means time: {0:.0f} s'.format(time.time() - end))
-        return loss
-
+        xb = preprocess_features(data, pca=self.pca)
+        nan_location = np.isnan(xb)
+        inf_location = np.isinf(xb)
+        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+            print('PCA: NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+            loss = None
+            return loss, xb
+        else:
+            # cluster the data
+            I, loss, D = run_kmeans(xb, self.k, verbose)
+            # I, D = run_kmeans(self.xb, self.k, verbose)
+            self.images_dist_lists = [np.array(I), D]
+            self.images_lists = [[] for i in range(self.k)]
+            for i in range(len(data)):
+                self.images_lists[I[i]].append(i)
+            if verbose:
+                print('k-means time: {0:.0f} s'.format(time.time() - end))
+            return loss, xb
 
 # def make_adjacencyW(I, D, sigma):
 #     """Create adjacency matrix with a Gaussian kernel.

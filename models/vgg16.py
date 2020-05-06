@@ -25,11 +25,11 @@ class VGG(nn.Module):
             nn.Linear(4096, 4096),
             nn.ReLU(True),
             nn.Dropout(0.5),
-            nn.Linear(4096, 512),
+            nn.Linear(4096, 128),
             nn.ReLU(True),
         )
         self.top_layer = nn.Sequential(
-            nn.Linear(512, num_classes),  # nn.Linear(4096, num_classes),
+            nn.Linear(128, num_classes),  # nn.Linear(4096, num_classes),
             nn.Softmax(dim=1),
         )
         self._initialize_weights()
