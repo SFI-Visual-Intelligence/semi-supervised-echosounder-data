@@ -84,13 +84,20 @@ def preprocess_features(npdata, pca):
     Returns:
         np.array of dim N * pca: data PCA-reduced, whitened and L2-normalized
     """
+    nan_location = np.isnan(npdata)
+    inf_location = np.isinf(npdata)
+    if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+        print('before_Astype_Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+        print('######################  break  ##################################')
+        return npdata
+
     _, ndim = npdata.shape
     npdata =  npdata.astype('float32')
 
     nan_location = np.isnan(npdata)
     inf_location = np.isinf(npdata)
     if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-        print('Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+        print('after_Astype_Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
         print('######################  break  ##################################')
         return npdata
 

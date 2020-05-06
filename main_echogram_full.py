@@ -433,7 +433,8 @@ def main(args):
         if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
             print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
             print('Skip epoch ', epoch)
-            torch.save(pca_features, 'NaN_%d.pth.tar' % epoch)
+            torch.save(pca_features, 'pca_NaN_%d.pth.tar' % epoch)
+            torch.save(features_train, 'feature_NaN_%d.pth.tar' % epoch)
             continue
 
         # save patches per epochs
