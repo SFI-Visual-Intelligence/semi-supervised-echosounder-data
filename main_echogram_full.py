@@ -421,13 +421,6 @@ def main(args):
         # get the features for the whole dataset
         features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
 
-        nan_location = np.isnan(features_train)
-        inf_location = np.isinf(features_train)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
-            print('Skip epoch ', epoch)
-            continue
-
         # cluster the features
         print('Cluster the features')
         end = time.time()
@@ -440,6 +433,7 @@ def main(args):
         if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
             print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
             print('Skip epoch ', epoch)
+            torch.save(pca_features, 'NaN_%d.pth.tar' % epoch)
             continue
 
         # save patches per epochs
