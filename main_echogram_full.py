@@ -163,7 +163,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         n = len(loader) * epoch + i
         if n % args.checkpoints == 0:
             path = os.path.join(
-                args.exp,
+                args.exp, '..',
                 'checkpoints',
                 'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
             )
@@ -222,7 +222,6 @@ def train(loader, model, crit, opt, epoch, device, args):
     # tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses.avg, imgidxes]
     # return losses.avg, tr_epoch_out
     return losses.avg
-
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -385,12 +384,12 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, 'checkpoints')
+    exp_check = os.path.join(args.exp,  '..', 'checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
     # creating cluster assignments log
-    cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
+    cluster_log = Logger(os.path.join(args.exp,  '..', 'clusters.pickle'))
 
     # # Create echogram sampling index
     print('Sample echograms.')
@@ -438,7 +437,7 @@ def main(args):
             continue
 
         # save patches per epochs
-        cp_epoch_out = [pca_features, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+        cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
                         labels_train]
 
         linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
@@ -448,10 +447,12 @@ def main(args):
                   'Pairwise classify. accu: {2} \n'
                   .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
 
-        if ((epoch+1) % args.save_epoch == 0):
+        if (epoch % args.save_epoch == 0):
             end = time.time()
-            with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
+            with open(os.path.join(args.exp, '..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
                 pickle.dump(cp_epoch_out, f)
+            with open(os.path.join(args.exp, '..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
+                pickle.dump(pca_features, f)
             print('Feature save time: {0:.2f} s'.format(time.time() - end))
 
         # assign pseudo-labels
@@ -499,9 +500,9 @@ def main(args):
             loss = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
         print('Train time: {0:.2f} s'.format(time.time() - end))
 
-        # if ((epoch+1) % args.save_epoch == 0):
+        # if (epoch % args.save_epoch == 0):
         #     end = time.time()
-        #     with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
+        #     with open(os.path.join(args.exp, '..', 'tr_epoch_%d.pickle' % epoch), "wb") as f:
         #         pickle.dump(tr_epoch_out, f)
         #     print('Save train time: {0:.2f} s'.format(time.time() - end))
 
@@ -533,7 +534,7 @@ def main(args):
                     'arch': args.arch,
                     'state_dict': model.state_dict(),
                     'optimizer' : optimizer.state_dict()},
-                   os.path.join(args.exp, 'checkpoint.pth.tar'))
+                   os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
 
         # print('epoch: ', type(epoch), epoch)
         # print('loss: ', type(loss), loss)
@@ -546,9 +547,8 @@ def main(args):
         loss_collect[2].append(linear_svc.whole_score)
         loss_collect[3].append(linear_svc.pair_score)
         loss_collect[4].append(clustering_loss)
-        with open("./loss_collect.pickle", "wb") as f:
+        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
-
 
         # save cluster assignments
         cluster_log.log(deepcluster.images_lists)
