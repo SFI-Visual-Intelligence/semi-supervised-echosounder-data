@@ -23,6 +23,9 @@ except:
 def path_to_echograms():
     return setup_file['path_to_echograms']
 
+def path_to_eval():
+    return setup_file['path_to_eval']
+
 def path_to_korona_data():
     return setup_file['path_to_korona_data']
 
