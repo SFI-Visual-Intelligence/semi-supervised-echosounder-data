@@ -332,12 +332,12 @@ def sampling_echograms_full(args):
 def sampling_echograms_eval(args):
     path_to_echograms = paths.path_to_echograms()
     echograms_eval = torch.load(os.path.join(path_to_echograms, 'echograms_eval.pt'))
-
-    sampler_eval = SampleFull(echograms_eval, args.window_size, args.stride)
+    window_size = [args.window_dim, args.window_dim]
+    sampler_eval = SampleFull(echograms_eval, window_size, args.stride)
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
     dataset_eval = DatasetGrid(
         sampler_eval,
-        args.window_size,
+        window_size,
         args.frequencies,
         data_transform_function=data_transform)
     return dataset_eval
