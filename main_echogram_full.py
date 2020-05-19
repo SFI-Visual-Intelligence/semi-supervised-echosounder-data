@@ -405,7 +405,7 @@ def main(args):
 
     model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_cluster)
     fd = int(model.top_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
-    model.top_layer = None
+    # model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
     model = model.double()
     model.to(device)
@@ -553,7 +553,7 @@ def main(args):
         #     pin_memory=True,
         # )
         #
-        # # set last fully connected layer
+        # set last fully connected layer
         # mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
         # mlp.append(nn.ReLU().to(device))
         # model.classifier = nn.Sequential(*mlp)
