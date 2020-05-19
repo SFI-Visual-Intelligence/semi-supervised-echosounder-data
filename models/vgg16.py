@@ -26,7 +26,7 @@ class VGG(nn.Module):
             nn.ReLU(True),
             nn.Dropout(0.5),
             nn.Linear(4096, 128),
-            nn.ReLU(True),
+            nn.ReLU(True), # should be removed
         )
         self.top_layer = nn.Sequential(
             nn.Linear(128, num_classes),  # nn.Linear(4096, num_classes),
@@ -58,6 +58,11 @@ class VGG(nn.Module):
         x = self.features(x)
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
+        if self.top_layer:
+            x = self.top_layer(x)
+        return x
+
+    def top_layer_forward(self, x):
         if self.top_layer:
             x = self.top_layer(x)
         return x

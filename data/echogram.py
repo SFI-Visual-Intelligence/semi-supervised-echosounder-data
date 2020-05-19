@@ -510,11 +510,12 @@ def get_echograms_revised(eg_names_full, sample_idx, num_echograms=100):
     sample_idx += 1
     return echograms, sample_idx
 
-def get_echograms_full(eg_names_full):
+def get_echograms_full():
     path_to_echograms = paths.path_to_echograms()
+    with open(os.path.join(path_to_echograms, 'memmap_2014_heave.pkl'), 'rb') as fp:
+        eg_names_full = pickle.load(fp)
     echograms = [Echogram(os.path.join(path_to_echograms, e)) for e in eg_names_full]
     return echograms
-
 
 if __name__ == '__main__':
     pass

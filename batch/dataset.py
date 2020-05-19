@@ -184,6 +184,34 @@ class DatasetImg():
     def __len__(self):
         return self.n_samples
 
+class DatasetGrid():
+    def __init__(self, sampler_test,
+                 window_size,
+                 frequencies,
+                 data_transform_function=None):
+        self.sampler_test = sampler_test
+        self.window_size = window_size
+        self.frequencies = frequencies
+        self.data_transform_function = data_transform_function
+
+    def __getitem__(self, index):
+        cumsum = np.cumsum(self.sampler_test.n_samples_per_echogram)
+        cumsum_sub_idx = cumsum - index
+        e_idx = np.where(cumsum_sub_idx > 0)[0][0]
+        sub_idx = cumsum_sub_idx[e_idx]
+        echogram = self.sampler_test.echograms[e_idx]
+        center_location = self.sampler_test.center_locations[e_idx][-sub_idx]
+        data, labels = get_crop(echogram, center_location, self.window_size, self.frequencies)
+
+        # Apply data-transform-function
+        if self.data_transform_function is not None:
+            data = self.data_transform_function(data)
+        labels = labels.astype('int16')
+        return data, labels
+
+    def __len__(self):
+        return self.sampler_test.n_samples
+
 def get_crop(echogram, center_location, window_size, freqs):
     """
     Returns a crop of data around the pixels specified in the center_location.

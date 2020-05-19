@@ -30,6 +30,11 @@ from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
+#############
+from batch.dataset import DatasetGrid
+from batch.samplers.sampler_test import SampleFull
+# from data.echogram import get_echograms_full
+#############
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
@@ -99,6 +104,7 @@ def parse_args():
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
+    parser.add_argument('--stride', type=int, default=8, help='stride of echogram patches for eval')
 
     # parser.add_argument('--iteration_train', type=int, default=1200,
     #                     help='num_tr_iterations per one batch and epoch')
@@ -323,6 +329,66 @@ def sampling_echograms_full(args):
         data_transform_function=data_transform)
     return dataset_cp
 
+def sampling_echograms_eval(args):
+    path_to_echograms = paths.path_to_echograms()
+    echograms_eval = torch.load(os.path.join(path_to_echograms, 'echograms_eval.pt'))
+
+    sampler_eval = SampleFull(echograms_eval, args.window_size, args.stride)
+    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
+    dataset_eval = DatasetGrid(
+        sampler_eval,
+        args.window_size,
+        args.frequencies,
+        data_transform_function=data_transform)
+    return dataset_eval
+
+def evaluate(loader, model, device, args):
+    fd = int(model.top_layer[0].weight.size()[1])
+    torch.save(model.top_layer.state_dict(), './top_layer_eval.pt')
+    N = loader.dataset.__len__()
+    input_tensors = []
+
+    with torch.no_grad():
+        for i, (input_tensor, _) in enumerate(loader):
+            input_tensor.double()
+            input_var = torch.autograd.Variable(input_tensor.to(device))
+
+            # get vectorial expression
+            model.top_layer = None
+            aux = model(input_var)
+
+            # recall top layer
+            model.top_layer = nn.Sequential(
+                nn.Linear(fd, args.nmb_cluster),
+                nn.Softmax(dim=1),
+            )
+            model.top_layer.load_state_dict(torch.load('./top_layer_eval.pt'))
+            model.top_layer = model.top_layer.double()
+            model.top_layer.to(device)
+
+            out = model.top_layer_forward(aux)
+
+            input_tensors.append(input_tensor.data.cpu().numpy())
+            aux = aux.data.cpu().numpy()
+            out = out.data.cpu().numpy()
+
+            if i == 0:
+                features = np.zeros((N, aux.shape[1]), dtype='float32')
+                outputs = np.zeros((N, out.shape[1]), dtype='float32')
+            aux = aux.astype('float32')
+            out = out.astype('float32')
+            if i < len(loader) - 1:
+                features[i * args.batch: (i + 1) * args.batch] = aux
+                outputs[i * args.batch: (i + 1) * args.batch] = out
+            else:
+                features[i * args.batch:] = aux
+                outputs[i * args.batch:] = out
+
+    echograms = loader.dataset.sampler_test.echograms
+    center_locations = loader.dataset.sampler_test.center_locations
+    input_tensors = np.concatenate(input_tensors, axis=0)
+    eval_epoch_out = [features, outputs, input_tensors, echograms, center_locations]
+    return eval_epoch_out
 
 def main(args):
     # fix random seeds
@@ -410,13 +476,22 @@ def main(args):
 
     loss_collect = [[], [], [], [], []]
     nmi_save = []
+
+    # for evaluation
+    dataset_eval = sampling_echograms_eval(args)
+    eval_dataloader = torch.utils.data.DataLoader(dataset_eval,
+                                                  batch_size=args.batch,
+                                                  shuffle=False,
+                                                  num_workers=args.workers,
+                                                  pin_memory=True,
+                                                  )
+
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
 
         # remove head
         model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear(512*128) in original vgg)
-                                                                                 # ReLU in .classfier() will follow later
+        model.classifier = nn.Sequential(*list(model.classifier.children()))
         # get the features for the whole dataset
         features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
 
@@ -535,6 +610,12 @@ def main(args):
                     'state_dict': model.state_dict(),
                     'optimizer' : optimizer.state_dict()},
                    os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
+
+        # evaluation: echogram reconstruction
+        # if epoch % 10 == 0:
+        eval_epoch_out = evaluate(eval_dataloader, model, device=device, args=args)
+        with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
+            pickle.dump(eval_epoch_out, f)
 
         # print('epoch: ', type(epoch), epoch)
         # print('loss: ', type(loss), loss)
