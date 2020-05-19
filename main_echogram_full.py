@@ -490,126 +490,126 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
 
         # remove head
-        model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children()))
-        # get the features for the whole dataset
-        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
-
-        # cluster the features
-        print('Cluster the features')
-        end = time.time()
-        clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
-        # deepcluster.cluster(features_train, verbose=args.verbose)
-        print('Cluster time: {0:.2f} s'.format(time.time() - end))
-
-        nan_location = np.isnan(pca_features)
-        inf_location = np.isinf(pca_features)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features, 'pca_NaN_%d.pth.tar' % epoch)
-            torch.save(features_train, 'feature_NaN_%d.pth.tar' % epoch)
-            continue
-
-        # save patches per epochs
-        cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
-                        labels_train]
-
-        linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
-        if args.verbose:
-            print('###### Epoch [{0}] ###### \n'
-                  'Classify. accu.: {1:.3f} \n'
-                  'Pairwise classify. accu: {2} \n'
-                  .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
-
-        if (epoch % args.save_epoch == 0):
-            end = time.time()
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features, f)
-            print('Feature save time: {0:.2f} s'.format(time.time() - end))
-
-        # assign pseudo-labels
-        print('Assign pseudo labels')
-        size_cluster = np.zeros(len(deepcluster.images_lists))
-        for i,  _list in enumerate(deepcluster.images_lists):
-            size_cluster[i] = len(_list)
-        print('size in clusters: ', size_cluster)
-        img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
-        train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-                                                  img_label_pair_train)  # Reassigned pseudolabel
-
-        # uniformly sample per target
-        sampler_train = UnifLabelSampler(int(len(train_dataset)),
-                                   deepcluster.images_lists)
-
-        train_dataloader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=args.batch,
-            shuffle=False,
-            num_workers=args.workers,
-            sampler=sampler_train,
-            pin_memory=True,
-        )
-
-        # set last fully connected layer
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
-        mlp.append(nn.ReLU().to(device))
-        model.classifier = nn.Sequential(*mlp)
-
-        model.top_layer = nn.Sequential(
-            nn.Linear(fd, args.nmb_cluster),
-            nn.Softmax(dim=1),
-            )
-        # model.top_layer = nn.Linear(fd, args.nmb_cluster)
-        model.top_layer[0].weight.data.normal_(0, 0.01)
-        model.top_layer[0].bias.data.zero_()
-        model.top_layer = model.top_layer.double()
-        model.top_layer.to(device)
-
-        # train network with clusters as pseudo-labels
-        end = time.time()
-        with torch.autograd.set_detect_anomaly(True):
-            # loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
-            loss = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
-        print('Train time: {0:.2f} s'.format(time.time() - end))
-
+        # model.top_layer = None
+        # model.classifier = nn.Sequential(*list(model.classifier.children()))
+        # # get the features for the whole dataset
+        # features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
+        #
+        # # cluster the features
+        # print('Cluster the features')
+        # end = time.time()
+        # clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
+        # # deepcluster.cluster(features_train, verbose=args.verbose)
+        # print('Cluster time: {0:.2f} s'.format(time.time() - end))
+        #
+        # nan_location = np.isnan(pca_features)
+        # inf_location = np.isinf(pca_features)
+        # if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+        #     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+        #     print('Skip epoch ', epoch)
+        #     torch.save(pca_features, 'pca_NaN_%d.pth.tar' % epoch)
+        #     torch.save(features_train, 'feature_NaN_%d.pth.tar' % epoch)
+        #     continue
+        #
+        # # save patches per epochs
+        # cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
+        #                 labels_train]
+        #
+        # linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
+        # if args.verbose:
+        #     print('###### Epoch [{0}] ###### \n'
+        #           'Classify. accu.: {1:.3f} \n'
+        #           'Pairwise classify. accu: {2} \n'
+        #           .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
+        #
         # if (epoch % args.save_epoch == 0):
         #     end = time.time()
-        #     with open(os.path.join(args.exp, '..', 'tr_epoch_%d.pickle' % epoch), "wb") as f:
-        #         pickle.dump(tr_epoch_out, f)
-        #     print('Save train time: {0:.2f} s'.format(time.time() - end))
-
-        # Accuracy with training set (output vs. pseudo label)
-        # accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
-
-        # print log
-        if args.verbose:
-            print('###### Epoch [{0}] ###### \n'
-                  'Time: {1:.3f} s\n'
-                  'ConvNet tr_loss: {2:.3f} \n'
-                  'Clustering loss: {3:.3f} \n'
-                  .format(epoch, time.time() - end, loss, clustering_loss))
-
-            try:
-                nmi = normalized_mutual_info_score(
-                    clustering.arrange_clustering(deepcluster.images_lists),
-                    clustering.arrange_clustering(cluster_log.data[-1])
-                )
-                nmi_save.append(nmi)
-                print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open("./nmi_collect.pickle", "wb") as ff:
-                    pickle.dump(nmi_save, ff)
-            except IndexError:
-                pass
-            print('####################### \n')
-        # save running checkpoint
-        torch.save({'epoch': epoch + 1,
-                    'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    'optimizer' : optimizer.state_dict()},
-                   os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
+        #     with open(os.path.join(args.exp, '..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
+        #         pickle.dump(cp_epoch_out, f)
+        #     with open(os.path.join(args.exp, '..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
+        #         pickle.dump(pca_features, f)
+        #     print('Feature save time: {0:.2f} s'.format(time.time() - end))
+        #
+        # # assign pseudo-labels
+        # print('Assign pseudo labels')
+        # size_cluster = np.zeros(len(deepcluster.images_lists))
+        # for i,  _list in enumerate(deepcluster.images_lists):
+        #     size_cluster[i] = len(_list)
+        # print('size in clusters: ', size_cluster)
+        # img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
+        # train_dataset = clustering.cluster_assign(deepcluster.images_lists,
+        #                                           img_label_pair_train)  # Reassigned pseudolabel
+        #
+        # # uniformly sample per target
+        # sampler_train = UnifLabelSampler(int(len(train_dataset)),
+        #                            deepcluster.images_lists)
+        #
+        # train_dataloader = torch.utils.data.DataLoader(
+        #     train_dataset,
+        #     batch_size=args.batch,
+        #     shuffle=False,
+        #     num_workers=args.workers,
+        #     sampler=sampler_train,
+        #     pin_memory=True,
+        # )
+        #
+        # # set last fully connected layer
+        # mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
+        # mlp.append(nn.ReLU().to(device))
+        # model.classifier = nn.Sequential(*mlp)
+        #
+        # model.top_layer = nn.Sequential(
+        #     nn.Linear(fd, args.nmb_cluster),
+        #     nn.Softmax(dim=1),
+        #     )
+        # # model.top_layer = nn.Linear(fd, args.nmb_cluster)
+        # model.top_layer[0].weight.data.normal_(0, 0.01)
+        # model.top_layer[0].bias.data.zero_()
+        # model.top_layer = model.top_layer.double()
+        # model.top_layer.to(device)
+        #
+        # # train network with clusters as pseudo-labels
+        # end = time.time()
+        # with torch.autograd.set_detect_anomaly(True):
+        #     # loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
+        #     loss = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
+        # print('Train time: {0:.2f} s'.format(time.time() - end))
+        #
+        # # if (epoch % args.save_epoch == 0):
+        # #     end = time.time()
+        # #     with open(os.path.join(args.exp, '..', 'tr_epoch_%d.pickle' % epoch), "wb") as f:
+        # #         pickle.dump(tr_epoch_out, f)
+        # #     print('Save train time: {0:.2f} s'.format(time.time() - end))
+        #
+        # # Accuracy with training set (output vs. pseudo label)
+        # # accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
+        #
+        # # print log
+        # if args.verbose:
+        #     print('###### Epoch [{0}] ###### \n'
+        #           'Time: {1:.3f} s\n'
+        #           'ConvNet tr_loss: {2:.3f} \n'
+        #           'Clustering loss: {3:.3f} \n'
+        #           .format(epoch, time.time() - end, loss, clustering_loss))
+        #
+        #     try:
+        #         nmi = normalized_mutual_info_score(
+        #             clustering.arrange_clustering(deepcluster.images_lists),
+        #             clustering.arrange_clustering(cluster_log.data[-1])
+        #         )
+        #         nmi_save.append(nmi)
+        #         print('NMI against previous assignment: {0:.3f}'.format(nmi))
+        #         with open("./nmi_collect.pickle", "wb") as ff:
+        #             pickle.dump(nmi_save, ff)
+        #     except IndexError:
+        #         pass
+        #     print('####################### \n')
+        # # save running checkpoint
+        # torch.save({'epoch': epoch + 1,
+        #             'arch': args.arch,
+        #             'state_dict': model.state_dict(),
+        #             'optimizer' : optimizer.state_dict()},
+        #            os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
 
         # evaluation: echogram reconstruction
         # if epoch % 10 == 0:
@@ -623,16 +623,16 @@ def main(args):
         # print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
         # print('clustering_loss: ', type(clustering_loss), clustering_loss)
 
-        loss_collect[0].append(epoch)
-        loss_collect[1].append(loss)
-        loss_collect[2].append(linear_svc.whole_score)
-        loss_collect[3].append(linear_svc.pair_score)
-        loss_collect[4].append(clustering_loss)
-        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
-            pickle.dump(loss_collect, f)
-
-        # save cluster assignments
-        cluster_log.log(deepcluster.images_lists)
+        # loss_collect[0].append(epoch)
+        # loss_collect[1].append(loss)
+        # loss_collect[2].append(linear_svc.whole_score)
+        # loss_collect[3].append(linear_svc.pair_score)
+        # loss_collect[4].append(clustering_loss)
+        # with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
+        #     pickle.dump(loss_collect, f)
+        #
+        # # save cluster assignments
+        # cluster_log.log(deepcluster.images_lists)
 
 if __name__ == '__main__':
     args = parse_args()
