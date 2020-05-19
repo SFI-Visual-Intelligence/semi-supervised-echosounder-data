@@ -405,7 +405,7 @@ def main(args):
 
     model = models.__dict__[args.arch](sobel=False, bn=True, out=args.nmb_cluster)
     fd = int(model.top_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
-    # model.top_layer = None
+    model.top_layer = None
     model.features = torch.nn.DataParallel(model.features)
     model = model.double()
     model.to(device)
@@ -490,8 +490,8 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
 
         # remove head
-        # model.top_layer = None
-        # model.classifier = nn.Sequential(*list(model.classifier.children()))
+        model.top_layer = None
+        model.classifier = nn.Sequential(*list(model.classifier.children()))
         # # get the features for the whole dataset
         # features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
         #
@@ -554,19 +554,19 @@ def main(args):
         # )
         #
         # set last fully connected layer
-        # mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
-        # mlp.append(nn.ReLU().to(device))
-        # model.classifier = nn.Sequential(*mlp)
-        #
-        # model.top_layer = nn.Sequential(
-        #     nn.Linear(fd, args.nmb_cluster),
-        #     nn.Softmax(dim=1),
-        #     )
-        # # model.top_layer = nn.Linear(fd, args.nmb_cluster)
-        # model.top_layer[0].weight.data.normal_(0, 0.01)
-        # model.top_layer[0].bias.data.zero_()
-        # model.top_layer = model.top_layer.double()
-        # model.top_layer.to(device)
+        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128)
+        mlp.append(nn.ReLU().to(device))
+        model.classifier = nn.Sequential(*mlp)
+
+        model.top_layer = nn.Sequential(
+            nn.Linear(fd, args.nmb_cluster),
+            nn.Softmax(dim=1),
+            )
+        # model.top_layer = nn.Linear(fd, args.nmb_cluster)
+        model.top_layer[0].weight.data.normal_(0, 0.01)
+        model.top_layer[0].bias.data.zero_()
+        model.top_layer = model.top_layer.double()
+        model.top_layer.to(device)
         #
         # # train network with clusters as pseudo-labels
         # end = time.time()
