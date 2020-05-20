@@ -343,10 +343,14 @@ def sampling_echograms_eval(args):
     return dataset_eval
 
 def evaluate(loader, model, device, args):
+    print("####################### Start evaluate #######################")
     fd = int(model.top_layer[0].weight.size()[1])
     torch.save(model.top_layer.state_dict(), './top_layer_eval.pt')
     N = loader.dataset.__len__()
     input_tensors = []
+
+    features = []
+    outputs = []
 
     with torch.no_grad():
         for i, (input_tensor, _) in enumerate(loader):
@@ -368,26 +372,27 @@ def evaluate(loader, model, device, args):
 
             out = model.top_layer_forward(aux)
 
-            input_tensors.append(input_tensor.data.cpu().numpy())
-            aux = aux.data.cpu().numpy()
-            out = out.data.cpu().numpy()
+            input_tensors.extend(input_tensor.data.cpu().numpy())
+            features.extend(aux.data.cpu().numpy())
+            outputs.extend(out.data.cpu().numpy())
 
-            if i == 0:
-                features = np.zeros((N, aux.shape[1]), dtype='float32')
-                outputs = np.zeros((N, out.shape[1]), dtype='float32')
-            aux = aux.astype('float32')
-            out = out.astype('float32')
-            if i < len(loader) - 1:
-                features[i * args.batch: (i + 1) * args.batch] = aux
-                outputs[i * args.batch: (i + 1) * args.batch] = out
-            else:
-                features[i * args.batch:] = aux
-                outputs[i * args.batch:] = out
+            # if i == 0:
+            #     features = np.zeros((N, aux.shape[1]), dtype='float32')
+            #     outputs = np.zeros((N, out.shape[1]), dtype='float32')
+            # aux = aux.astype('float32')
+            # out = out.astype('float32')
+            # if i < len(loader) - 1:
+            #     features[i * args.batch: (i + 1) * args.batch] = aux
+            #     outputs[i * args.batch: (i + 1) * args.batch] = out
+            # else:
+            #     features[i * args.batch:] = aux
+            #     outputs[i * args.batch:] = out
 
     echograms = loader.dataset.sampler_test.echograms
     center_locations = loader.dataset.sampler_test.center_locations
     input_tensors = np.concatenate(input_tensors, axis=0)
     eval_epoch_out = [features, outputs, input_tensors, echograms, center_locations]
+    print("####################### End evaluate #######################")
     return eval_epoch_out
 
 def main(args):
