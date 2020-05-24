@@ -79,7 +79,7 @@ def parse_args():
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=1, type=int,
+    parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 16)')
@@ -617,10 +617,10 @@ def main(args):
                    os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
 
         # evaluation: echogram reconstruction
-        # if epoch % 10 == 0:
-        eval_epoch_out = evaluate(eval_dataloader, model, device=device, args=args)
-        with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
-            pickle.dump(eval_epoch_out, f)
+        if (epoch % args.save_epoch == 0):
+            eval_epoch_out = evaluate(eval_dataloader, model, device=device, args=args)
+            with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
+                pickle.dump(eval_epoch_out, f)
 
         # print('epoch: ', type(epoch), epoch)
         # print('loss: ', type(loss), loss)
