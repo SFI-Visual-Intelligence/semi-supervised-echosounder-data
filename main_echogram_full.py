@@ -331,6 +331,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_eval(args):
     path_to_echograms = paths.path_to_echograms()
+    # path_to_echograms = '/Users/changkyu/Documents/GitHub/echogram/memmap/memmap_set/memmap_2014'
     echograms_eval = torch.load(os.path.join(path_to_echograms, 'echograms_eval.pt'))
     window_size = [args.window_dim, args.window_dim]
     sampler_eval = SampleFull(echograms_eval, window_size, args.stride)
@@ -390,7 +391,6 @@ def evaluate(loader, model, device, args):
 
     echograms = loader.dataset.sampler_test.echograms
     center_locations = loader.dataset.sampler_test.center_locations
-    input_tensors = np.concatenate(input_tensors, axis=0)
     eval_epoch_out = [features, outputs, input_tensors, echograms, center_locations]
     print("####################### End evaluate #######################")
     return eval_epoch_out
