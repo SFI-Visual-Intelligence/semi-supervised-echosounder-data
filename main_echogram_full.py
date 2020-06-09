@@ -34,7 +34,7 @@ from batch.dataset import DatasetImg
 from batch.dataset import DatasetGrid
 from batch.samplers.sampler_test import SampleFull
 from batch.samplers.get_all_patches import GetAllPatches
-from data.echogram import get_echograms
+from data.echogram import Echogram
 #############
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
@@ -284,12 +284,15 @@ def sampling_echograms_full(args):
     return dataset_cp
 
 def sampling_echograms_eval(args):
-    echograms_eval = get_echograms(years=[2019], frequencies=[18, 38, 120, 200],
-                                   minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
+    # echograms_eval = get_echograms(years=[2019], frequencies=[18, 38, 120, 200],
+    #                                minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
+    # stride_eval = [args.stride, args.stride]
+    # gap_eval = GetAllPatches(echograms_eval, window_size, stride_eval, fish_type=[1, 27], random_offset_ratio=1024, phase='eval')
+    # echograms_eval = gap_eval.target_echograms
     window_size = [args.window_dim, args.window_dim]
-    stride_eval = [args.stride, args.stride]
-    gap_eval = GetAllPatches(echograms_eval, window_size, stride_eval, fish_type=[1, 27], random_offset_ratio=1024, phase='eval')
-    echograms_eval = gap_eval.target_echograms
+    path_to_eval = paths.path_to_eval()
+    eval_dir_names = ['2019847-D20190512-T140210', '2019847-D20190512-T161218', '2019847-D20190512-T143430', '2019847-D20190512-T153731']
+    echograms_eval = [Echogram(os.path.join(path_to_eval, e)) for e in eval_dir_names]
     sampler_eval = SampleFull(echograms_eval, window_size, args.stride)
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
     dataset_eval = DatasetGrid(
