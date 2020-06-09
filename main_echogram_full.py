@@ -272,7 +272,7 @@ def compute_features(dataloader, model, N, device, args):
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1024.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1024_6.pt'))
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
@@ -284,7 +284,7 @@ def sampling_echograms_full(args):
     return dataset_cp
 
 def sampling_echograms_eval(args):
-    echograms_eval = get_echograms(years=[2018, 2019], frequencies=[18, 38, 120, 200],
+    echograms_eval = get_echograms(years=[2019], frequencies=[18, 38, 120, 200],
                                    minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
     window_size = [args.window_dim, args.window_dim]
     stride_eval = [args.stride, args.stride]
