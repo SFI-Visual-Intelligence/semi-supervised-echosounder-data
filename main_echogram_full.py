@@ -33,7 +33,8 @@ from batch.dataset import DatasetImg
 #############
 from batch.dataset import DatasetGrid
 from batch.samplers.sampler_test import SampleFull
-# from data.echogram import get_echograms_full
+from batch.samplers.get_all_patches import GetAllPatches
+from data.echogram import get_echograms
 #############
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
@@ -61,7 +62,7 @@ def parse_args():
                         help='CNN architecture (default: vgg16)')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=100,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=6,
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--lr_Adam', default=1e-4, type=float,
                         help='learning rate (default: 0.05)')
@@ -271,23 +272,24 @@ def compute_features(dataloader, model, N, device, args):
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1000.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1024.pt'))
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_cp = DatasetImg(
         samplers_train,
-        5000,
         args.sampler_probs,
         augmentation_function=augmentation,
         data_transform_function=data_transform)
     return dataset_cp
 
 def sampling_echograms_eval(args):
-    path_to_echograms = paths.path_to_echograms()
-    # path_to_echograms = '/Users/changkyu/Documents/GitHub/echogram/memmap/memmap_set/memmap_2014'
-    echograms_eval = torch.load(os.path.join(path_to_echograms, 'echograms_eval.pt'))
+    echograms_eval = get_echograms(years=[2018, 2019], frequencies=[18, 38, 120, 200],
+                                   minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
     window_size = [args.window_dim, args.window_dim]
+    stride_eval = [args.stride, args.stride]
+    gap_eval = GetAllPatches(echograms_eval, window_size, stride_eval, fish_type=[1, 27], random_offset_ratio=1024, phase='eval')
+    echograms_eval = gap_eval.target_echograms
     sampler_eval = SampleFull(echograms_eval, window_size, args.stride)
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
     dataset_eval = DatasetGrid(

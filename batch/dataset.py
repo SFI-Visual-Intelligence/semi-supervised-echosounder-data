@@ -146,7 +146,6 @@ class Dataset():
 class DatasetImg():
 
     def __init__(self, samplers,
-                 n_samples = 5000,
                  sampler_probs=None,
                  augmentation_function=None,
                  data_transform_function=None):
@@ -161,12 +160,12 @@ class DatasetImg():
         :param label_transform_function:
         :param data_transform_function:
         """
-
         self.samplers = samplers
-        self.n_samples = n_samples
+        self.n_samples = int(len(self.samplers) * len(self.samplers[0]))
         self.sampler_probs = sampler_probs
         self.augmentation_function = augmentation_function
         self.data_transform_function = data_transform_function
+
 
     def __getitem__(self, index):
         #Select which sampler to use
