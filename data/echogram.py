@@ -447,7 +447,7 @@ class Echogram():
 
 def get_echograms(years, frequencies, minimum_shape, maximum_shape):
     """ Returns all the echograms for a given year that contain the given frequencies"""
-    path_to_echograms = paths.path_to_echograms()  # = paths.path_to_full_echograms()
+    path_to_echograms = paths.path_to_eval()  # = paths.path_to_full_echograms()
     eg_names_all = os.listdir(path_to_echograms)
     eg_names_all = [name for name in eg_names_all if
                     '.' not in name]  # Include folders only: exclude all root files (e.g. '.tar')
