@@ -80,7 +80,7 @@ def parse_args():
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=5, type=int,
+    parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 16)')
@@ -581,22 +581,22 @@ def main(args):
             with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
                 pickle.dump(eval_epoch_out, f)
 
-        # print('epoch: ', type(epoch), epoch)
-        # print('loss: ', type(loss), loss)
-        # print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
-        # print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
-        # print('clustering_loss: ', type(clustering_loss), clustering_loss)
+        print('epoch: ', type(epoch), epoch)
+        print('loss: ', type(loss), loss)
+        print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
+        print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
+        print('clustering_loss: ', type(clustering_loss), clustering_loss)
 
-        # loss_collect[0].append(epoch)
-        # loss_collect[1].append(loss)
-        # loss_collect[2].append(linear_svc.whole_score)
-        # loss_collect[3].append(linear_svc.pair_score)
-        # loss_collect[4].append(clustering_loss)
-        # with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
-        #     pickle.dump(loss_collect, f)
-        #
-        # # save cluster assignments
-        # cluster_log.log(deepcluster.images_lists)
+        loss_collect[0].append(epoch)
+        loss_collect[1].append(loss)
+        loss_collect[2].append(linear_svc.whole_score)
+        loss_collect[3].append(linear_svc.pair_score)
+        loss_collect[4].append(clustering_loss)
+        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
+            pickle.dump(loss_collect, f)
+
+        # save cluster assignments
+        cluster_log.log(deepcluster.images_lists)
 
 if __name__ == '__main__':
     args = parse_args()
