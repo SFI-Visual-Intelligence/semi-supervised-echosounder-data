@@ -272,7 +272,7 @@ def compute_features(dataloader, model, N, device, args):
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1024_6.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_1024_3.pt'))
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
