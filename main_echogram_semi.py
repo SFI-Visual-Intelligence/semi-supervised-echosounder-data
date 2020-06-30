@@ -604,11 +604,10 @@ def main(args):
         # train network with clusters as pseudo-labels
         end = time.time()
         with torch.autograd.set_detect_anomaly(True):
-            loss = train(train_dataloader, dataloader_semi, model, fd, criterion, optimizer, epoch, device=device, args=args)
+            pseudo_loss, semi_loss = train(train_dataloader, dataloader_semi, model, fd, criterion, optimizer, epoch, device=device, args=args)
         print('Train time: {0:.2f} s'.format(time.time() - end))
-
+        end = time.time()
         test_loss = test(dataloader_test, model, fd, criterion, device, args)
-
 
         # if (epoch % args.save_epoch == 0):
         #     end = time.time()
@@ -623,9 +622,10 @@ def main(args):
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
-                  'ConvNet tr_loss: {2:.3f} \n'
-                  'Clustering loss: {3:.3f} \n'
-                  .format(epoch, time.time() - end, loss, clustering_loss))
+                  'Pseudo tr_loss: {2:.3f} \n'
+                  'SEMI tr_loss: {3:.3f} \n'
+                  'TEST tr_loss: {4:.3f} \n'
+                  'Clustering loss: {5:.3f} \n'.format(epoch, time.time() - end, pseudo_loss, semi_loss, test_loss, clustering_loss))
 
             try:
                 nmi = normalized_mutual_info_score(
@@ -652,19 +652,21 @@ def main(args):
         #     with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
         #         pickle.dump(eval_epoch_out, f)
 
-        print('epoch: ', type(epoch), epoch)
-        print('loss: ', type(loss), loss)
-        print('Test loss: ', type(test_loss), test_loss)
+        # print('epoch: ', type(epoch), epoch)
+        # print('loss: ', type(loss), loss)
+        # print('Test loss: ', type(test_loss), test_loss)
         # print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
         # print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
-        print('clustering_loss: ', type(clustering_loss), clustering_loss)
+        # print('clustering_loss: ', type(clustering_loss), clustering_loss)
 
         loss_collect[0].append(epoch)
-        loss_collect[1].append(loss)
-        loss_collect[2].append(test_loss)
+        loss_collect[1].append(pseudo_loss)
+        loss_collect[2].append(semi_loss)
+        loss_collect[3].append(clustering_loss)
+        loss_collect[4].append(test_loss)
         # loss_collect[2].append(linear_svc.whole_score)
         # loss_collect[3].append(linear_svc.pair_score)
-        loss_collect[4].append(clustering_loss)
+
         with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
