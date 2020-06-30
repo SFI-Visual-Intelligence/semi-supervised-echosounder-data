@@ -98,7 +98,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=1, help='ratio of the labeled samples')
 
     # parser.add_argument('--iteration_train', type=int, default=1200,
     #                     help='num_tr_iterations per one batch and epoch')
@@ -114,166 +114,166 @@ def zip_img_label(img_tensors, labels):
     print('num_pairs: ', len(img_label_pair))
     return img_label_pair
 
-def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
-    batch_time = AverageMeter()
-    losses = AverageMeter()
-    semi_losses = AverageMeter()
-    data_time = AverageMeter()
+# def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
+#     batch_time = AverageMeter()
+#     losses = AverageMeter()
+#     semi_losses = AverageMeter()
+#     data_time = AverageMeter()
+#
+#     model.category_layer = None
+#     model.cluster_layer = nn.Sequential(
+#         nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
+#         nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
+#     )
+#     # load_state_dict ?
+#     model.cluster_layer[0].weight.data.normal_(0, 0.01)
+#     model.cluster_layer[0].bias.data.zero_()
+#     model.cluster_layer = model.cluster_layer.double()
+#     model.cluster_layer.to(device)
+#
+#     # switch to train mode
+#     model.train()
+#
+#     end = time.time()
+#     input_tensors = []
+#     labels = []
+#     pseudo_targets = []
+#     outputs = []
+#     imgidxes = []
+#
+#     for i, ((input_tensor, label), pseudo_target, imgidx) in enumerate(loader):
+#         data_time.update(time.time() - end)
+#
+#         # save checkpoint
+#         n = len(loader) * epoch + i
+#         if n % args.checkpoints == 0:
+#             path = os.path.join(
+#                 args.exp, '..',
+#                 'checkpoints',
+#                 'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
+#             )
+#             if args.verbose:
+#                 print('Save checkpoint at: {0}'.format(path))
+#             torch.save({
+#                 'epoch': epoch + 1,
+#                 'arch': args.arch,
+#                 'state_dict': model.state_dict(),
+#                 'optimizer' : opt.state_dict()
+#             }, path)
+#
+#         input_var = torch.autograd.Variable(input_tensor.to(device))
+#         pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
+#
+#         output = model(input_var)
+#         loss = crit(output, pseudo_target_var.long())
+#
+#         # record loss
+#         losses.update(loss.item(), input_tensor.size(0))
+#
+#         # compute gradient and do SGD step
+#         opt.zero_grad()
+#         loss.backward()
+#         opt.step()
+#
+#         # measure elapsed time
+#         batch_time.update(time.time() - end)
+#         end = time.time()
+#
+#         if args.verbose and (i % 5) == 0:
+#             print('Epoch: [{0}][{1}/{2}]\t'
+#                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+#                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
+#                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
+#
+#         input_tensors.append(input_tensor.data.cpu().numpy())
+#         pseudo_targets.append(pseudo_target.data.cpu().numpy())
+#         outputs.append(output.data.cpu().numpy())
+#         labels.append(label)
+#         imgidxes.append(imgidx)
+#
+#         input_tensors = []
+#         labels = []
+#         pseudo_targets = []
+#         outputs = []
+#         imgidxes = []
+#
+#     #############################################################
+#     # Semi-supervised learning
+#     model.cluster_layer = None
+#     model.category_layer = nn.Sequential(
+#         nn.Linear(args.nmb_cluster, args.nmb_category),
+#         nn.Softmax(dim=1),
+#     )
+#     model.category_layer[0].weight.data.normal_(0, 0.01)
+#     model.category_layer[0].bias.data.zero_()
+#     model.category_layer = model.category_layer.double()
+#     model.category_layer.to(device)
+#
+#     for i, (input_tensor, label) in enumerate(semi_loader):
+#         input_var = torch.autograd.Variable(input_tensor.to(device))
+#         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
+#
+#         output = model(input_var)
+#         semi_loss = crit(output, label_var.long())
+#
+#         # record loss
+#         semi_losses.update(semi_loss.item(), input_tensor.size(0))
+#
+#         # compute gradient and do SGD step
+#         opt.zero_grad()
+#         semi_loss.backward()
+#         opt.step()
+#
+#         # measure elapsed time
+#         batch_time.update(time.time() - end)
+#         end = time.time()
+#
+#         if args.verbose and (i % 5) == 0:
+#             print('Epoch: [{0}][{1}/{2}]\t'
+#                   'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
+#                   .format(epoch, i, len(loader), loss=semi_losses))
+#
+#     return losses.avg, semi_losses.avg
 
-    model.category_layer = None
-    model.cluster_layer = nn.Sequential(
-        nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
-        nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
-    )
-    # load_state_dict ?
-    model.cluster_layer[0].weight.data.normal_(0, 0.01)
-    model.cluster_layer[0].bias.data.zero_()
-    model.cluster_layer = model.cluster_layer.double()
-    model.cluster_layer.to(device)
-
-    # switch to train mode
-    model.train()
-
-    end = time.time()
-    input_tensors = []
-    labels = []
-    pseudo_targets = []
-    outputs = []
-    imgidxes = []
-
-    for i, ((input_tensor, label), pseudo_target, imgidx) in enumerate(loader):
-        data_time.update(time.time() - end)
-
-        # save checkpoint
-        n = len(loader) * epoch + i
-        if n % args.checkpoints == 0:
-            path = os.path.join(
-                args.exp, '..',
-                'checkpoints',
-                'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
-            )
-            if args.verbose:
-                print('Save checkpoint at: {0}'.format(path))
-            torch.save({
-                'epoch': epoch + 1,
-                'arch': args.arch,
-                'state_dict': model.state_dict(),
-                'optimizer' : opt.state_dict()
-            }, path)
-
-        input_var = torch.autograd.Variable(input_tensor.to(device))
-        pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
-
-        output = model(input_var)
-        loss = crit(output, pseudo_target_var.long())
-
-        # record loss
-        losses.update(loss.item(), input_tensor.size(0))
-
-        # compute gradient and do SGD step
-        opt.zero_grad()
-        loss.backward()
-        opt.step()
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if args.verbose and (i % 5) == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-                  .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
-
-        input_tensors.append(input_tensor.data.cpu().numpy())
-        pseudo_targets.append(pseudo_target.data.cpu().numpy())
-        outputs.append(output.data.cpu().numpy())
-        labels.append(label)
-        imgidxes.append(imgidx)
-
-        input_tensors = []
-        labels = []
-        pseudo_targets = []
-        outputs = []
-        imgidxes = []
-
-    #############################################################
-    # Semi-supervised learning
-    model.cluster_layer = None
-    model.category_layer = nn.Sequential(
-        nn.Linear(args.nmb_cluster, args.nmb_category),
-        nn.Softmax(dim=1),
-    )
-    model.category_layer[0].weight.data.normal_(0, 0.01)
-    model.category_layer[0].bias.data.zero_()
-    model.category_layer = model.category_layer.double()
-    model.category_layer.to(device)
-
-    for i, (input_tensor, label) in enumerate(semi_loader):
-        input_var = torch.autograd.Variable(input_tensor.to(device))
-        label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
-
-        output = model(input_var)
-        semi_loss = crit(output, label_var.long())
-
-        # record loss
-        semi_losses.update(semi_loss.item(), input_tensor.size(0))
-
-        # compute gradient and do SGD step
-        opt.zero_grad()
-        semi_loss.backward()
-        opt.step()
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if args.verbose and (i % 5) == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-                  .format(epoch, i, len(loader), loss=semi_losses))
-
-    return losses.avg, semi_losses.avg
-
-def compute_features(dataloader, model, N, device, args):
-    if args.verbose:
-        print('Compute features')
-    batch_time = AverageMeter()
-    end = time.time()
-    model.eval()
-    # discard the label information in the dataloader
-    input_tensors = []
-    labels = []
-    with torch.no_grad():
-         for i, (input_tensor, label) in enumerate(dataloader):
-            input_tensor.double()
-            input_var = torch.autograd.Variable(input_tensor.to(device))
-            aux = model(input_var).data.cpu().numpy()
-
-            if i == 0:
-                features = np.zeros((N, aux.shape[1]), dtype='float32')
-
-            aux = aux.astype('float32')
-            if i < len(dataloader) - 1:
-                features[i * args.batch: (i + 1) * args.batch] = aux
-            else:
-                # special treatment for final batch
-                features[i * args.batch:] = aux
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            if args.verbose and (i % 10) == 0:
-                print('{0} / {1}\t'
-                      'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
-                      .format(i, len(dataloader), batch_time=batch_time))
-
-            input_tensors.append(input_tensor.data.cpu().numpy())
-            labels.append(label.data.cpu().numpy())
-         input_tensors = np.concatenate(input_tensors, axis=0)
-         labels = np.concatenate(labels, axis=0)
-         return features, input_tensors, labels
+# def compute_features(dataloader, model, N, device, args):
+#     if args.verbose:
+#         print('Compute features')
+#     batch_time = AverageMeter()
+#     end = time.time()
+#     model.eval()
+#     # discard the label information in the dataloader
+#     input_tensors = []
+#     labels = []
+#     with torch.no_grad():
+#          for i, (input_tensor, label) in enumerate(dataloader):
+#             input_tensor.double()
+#             input_var = torch.autograd.Variable(input_tensor.to(device))
+#             aux = model(input_var).data.cpu().numpy()
+#
+#             if i == 0:
+#                 features = np.zeros((N, aux.shape[1]), dtype='float32')
+#
+#             aux = aux.astype('float32')
+#             if i < len(dataloader) - 1:
+#                 features[i * args.batch: (i + 1) * args.batch] = aux
+#             else:
+#                 # special treatment for final batch
+#                 features[i * args.batch:] = aux
+#
+#             # measure elapsed time
+#             batch_time.update(time.time() - end)
+#             end = time.time()
+#
+#             if args.verbose and (i % 10) == 0:
+#                 print('{0} / {1}\t'
+#                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
+#                       .format(i, len(dataloader), batch_time=batch_time))
+#
+#             input_tensors.append(input_tensor.data.cpu().numpy())
+#             labels.append(label.data.cpu().numpy())
+#          input_tensors = np.concatenate(input_tensors, axis=0)
+#          labels = np.concatenate(labels, axis=0)
+#          return features, input_tensors, labels
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
@@ -431,8 +431,8 @@ def main(args):
 
     model = models.__dict__[args.arch](bn=True, num_cluster=args.nmb_cluster, num_category=args.nmb_category)
     fd = int(model.cluster_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
-    model.cluster_layer = None
-    model.category_layer = None
+    # model.cluster_layer = None
+    # model.category_layer = None
     # model.features = torch.nn.DataParallel(model.features)
     model = model.double()
     model.to(device)

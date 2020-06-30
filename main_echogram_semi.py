@@ -201,7 +201,7 @@ def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
     # Semi-supervised learning
     model.cluster_layer = None
     model.category_layer = nn.Sequential(
-        nn.Linear(args.nmb_cluster, args.nmb_category),
+        nn.Linear(fd, args.nmb_category),
         nn.Softmax(dim=1),
     )
     model.category_layer[0].weight.data.normal_(0, 0.01)
