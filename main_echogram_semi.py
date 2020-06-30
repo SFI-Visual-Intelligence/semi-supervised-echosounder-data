@@ -155,7 +155,6 @@ def pretrain(semi_loader, model, crit, opt, epoch, device, args):
 
     return semi_losses.avg
 
-
 def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
     batch_time = AverageMeter()
     losses = AverageMeter()
