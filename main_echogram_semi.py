@@ -129,6 +129,7 @@ def pretrain(semi_loader, model, crit, opt, epoch, device, args):
     #############################################################
     # Semi-supervised learning
     for i, (input_tensor, label) in enumerate(semi_loader):
+        input_tensor.double()
         input_var = torch.autograd.Variable(input_tensor.to(device))
         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
 
@@ -173,9 +174,11 @@ def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
         nn.Softmax(dim=1),
     )
     model.category_layer.load_state_dict(torch.load('./category_layer_pretrain.pt'))
+    model.category_layer = model.category_layer.double()
     model.category_layer.to(device)
 
     for i, (input_tensor, label) in enumerate(semi_loader):
+        input_tensor.double()
         input_var = torch.autograd.Variable(input_tensor.to(device))
         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
 
@@ -238,10 +241,9 @@ def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
                 'state_dict': model.state_dict(),
                 'optimizer' : opt.state_dict()
             }, path)
-
+        input_tensor.double()
         input_var = torch.autograd.Variable(input_tensor.to(device))
         pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
-
         output = model(input_var)
         loss = crit(output, pseudo_target_var.long())
 
@@ -602,6 +604,12 @@ def main(args):
         torch.save(model.category_layer.state_dict(), './category_layer_pretrain.pt')
         with open(os.path.join(args.exp, '..', 'pretrain_loss.pickle'), "wb") as f:
             pickle.dump(pretrain_loss_save, f)
+
+    torch.save({'epoch': epoch + 1,
+                'arch': args.arch,
+                'state_dict': model.state_dict(),
+                'optimizer': optimizer.state_dict()},
+               os.path.join(args.exp, '..', 'checkpoint.pth.tar'))
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
