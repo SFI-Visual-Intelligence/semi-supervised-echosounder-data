@@ -597,7 +597,7 @@ def main(args):
         )
         pretrain_loss_save = []
         for epoch in range(args.pretrain_epoch):
-            pretrain_loss = pretrain(dataloader_semi, model, fd, criterion, optimizer_pretrain, epoch, device, args)
+            pretrain_loss = pretrain(dataloader_semi, model, criterion, optimizer_pretrain, epoch, device, args)
             pretrain_loss_save.append(pretrain_loss)
         torch.save(model.category_layer.state_dict(), './category_layer_pretrain.pt')
         with open(os.path.join(args.exp, '..', 'pretrain_loss.pickle'), "wb") as f:
