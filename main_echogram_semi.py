@@ -60,7 +60,7 @@ def parse_args():
                         help='epoch count for pretrain_with few labels (semi-sup)')
     parser.add_argument('--lr_Adam', default=1e-4, type=float,
                         help='learning rate (default: 0.05)')
-    parser.add_argument('--lr_Adam_pretrain', default=1e-3, type=float,
+    parser.add_argument('--lr_Adam_pretrain', default=1e-4, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--lr_SGD', default=5e-3, type=float,
                         help='learning rate (default: 0.05)')
@@ -542,7 +542,7 @@ def main(args):
                                                 pin_memory=True)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=False,
+                                                shuffle=True,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
@@ -550,7 +550,7 @@ def main(args):
 
     dataset_test = sampling_echograms_test(args)
     dataloader_test = torch.utils.data.DataLoader(dataset_test,
-                                                shuffle=False,
+                                                shuffle=True,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
@@ -580,8 +580,6 @@ def main(args):
     # pretrain
     if args.start_epoch == 0:
         print("Start pretrain upto %d epochs" % args.start_epoch)
-
-
         model.cluster_layer = None
         model.category_layer = nn.Sequential(
             nn.Linear(fd, args.nmb_category),
@@ -666,7 +664,7 @@ def main(args):
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=args.batch,
-            shuffle=False,
+            shuffle=True,
             num_workers=args.workers,
             sampler=sampler_train,
             pin_memory=True,
