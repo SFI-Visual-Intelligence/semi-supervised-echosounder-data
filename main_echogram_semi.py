@@ -542,7 +542,7 @@ def main(args):
                                                 pin_memory=True)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=True,
+                                                shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
@@ -550,7 +550,7 @@ def main(args):
 
     dataset_test = sampling_echograms_test(args)
     dataloader_test = torch.utils.data.DataLoader(dataset_test,
-                                                shuffle=True,
+                                                shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
@@ -579,7 +579,7 @@ def main(args):
 
     # pretrain
     if args.start_epoch == 0:
-        print("Start pretrain upto %d epochs" % args.start_epoch)
+        print("Start pretrain upto %d epochs" % args.pretrain_epoch)
         model.cluster_layer = None
         model.category_layer = nn.Sequential(
             nn.Linear(fd, args.nmb_category),
@@ -664,7 +664,7 @@ def main(args):
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=args.batch,
-            shuffle=True,
+            shuffle=False,
             num_workers=args.workers,
             sampler=sampler_train,
             pin_memory=True,
