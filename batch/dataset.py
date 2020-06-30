@@ -144,7 +144,6 @@ class Dataset():
 
 
 class DatasetImg():
-
     def __init__(self, samplers,
                  sampler_probs=None,
                  augmentation_function=None,
