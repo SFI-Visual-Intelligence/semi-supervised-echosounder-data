@@ -12,5 +12,5 @@ def db_with_limits_img(data):
     data = db(data)
     data[data>0] = 0
     data[data<-75] = -75
-    data = (data - data.min()) / (data.max() - data.min())
+    # data = (data - data.min()) / (data.max() - data.min())
     return data
