@@ -56,7 +56,11 @@ def parse_args():
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
+    parser.add_argument('--pretrain_epoch', default=100, type=int,
+                        help='epoch count for pretrain_with few labels (semi-sup)')
     parser.add_argument('--lr_Adam', default=1e-4, type=float,
+                        help='learning rate (default: 0.05)')
+    parser.add_argument('--lr_Adam_pretrain', default=1e-3, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--lr_SGD', default=5e-3, type=float,
                         help='learning rate (default: 0.05)')
@@ -74,7 +78,7 @@ def parse_args():
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=30, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=16, type=int,
+    parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
@@ -114,11 +118,95 @@ def zip_img_label(img_tensors, labels):
     print('num_pairs: ', len(img_label_pair))
     return img_label_pair
 
+def pretrain(semi_loader, model, crit, opt, epoch, device, args):
+    batch_time = AverageMeter()
+    semi_losses = AverageMeter()
+
+    # switch to train mode
+    model.train()
+    end = time.time()
+
+    #############################################################
+    # Semi-supervised learning
+    for i, (input_tensor, label) in enumerate(semi_loader):
+        input_var = torch.autograd.Variable(input_tensor.to(device))
+        label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
+
+        output = model(input_var)
+        semi_loss = crit(output, label_var.long())
+
+        # record loss
+        semi_losses.update(semi_loss.item(), input_tensor.size(0))
+
+        # compute gradient and do SGD step
+        opt.zero_grad()
+        semi_loss.backward()
+        opt.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if args.verbose and (i % 3) == 0:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'PreTrain: {loss.val:.4f} ({loss.avg:.4f})'
+                  .format(epoch, i, len(semi_loader), loss=semi_losses))
+
+    return semi_losses.avg
+
+
 def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
     batch_time = AverageMeter()
     losses = AverageMeter()
     semi_losses = AverageMeter()
     data_time = AverageMeter()
+
+    # switch to train mode
+    model.train()
+    end = time.time()
+
+    #############################################################
+    # Semi-supervised learning
+    model.cluster_layer = None
+    model.category_layer = nn.Sequential(
+        nn.Linear(fd, args.nmb_category),
+        nn.Softmax(dim=1),
+    )
+    model.category_layer.load_state_dict(torch.load('./category_layer_pretrain.pt'))
+    model.category_layer.to(device)
+
+    for i, (input_tensor, label) in enumerate(semi_loader):
+        input_var = torch.autograd.Variable(input_tensor.to(device))
+        label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
+
+        output = model(input_var)
+        semi_loss = crit(output, label_var.long())
+
+        # record loss
+        semi_losses.update(semi_loss.item(), input_tensor.size(0))
+
+        # compute gradient and do SGD step
+        opt.zero_grad()
+        semi_loss.backward()
+        opt.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if args.verbose and (i % 3) == 0:
+            print('Epoch: [{0}][{1}/{2}]\t'
+                  'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
+                  .format(epoch, i, len(semi_loader), loss=semi_losses))
+
+    ##############################
+
+    end = time.time()
+    input_tensors = []
+    labels = []
+    pseudo_targets = []
+    outputs = []
+    imgidxes = []
 
     model.category_layer = None
     model.cluster_layer = nn.Sequential(
@@ -130,16 +218,6 @@ def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
     model.cluster_layer[0].bias.data.zero_()
     model.cluster_layer = model.cluster_layer.double()
     model.cluster_layer.to(device)
-
-    # switch to train mode
-    model.train()
-
-    end = time.time()
-    input_tensors = []
-    labels = []
-    pseudo_targets = []
-    outputs = []
-    imgidxes = []
 
     for i, ((input_tensor, label), pseudo_target, imgidx) in enumerate(loader):
         data_time.update(time.time() - end)
@@ -197,43 +275,8 @@ def train(loader, semi_loader, model, fd, crit, opt, epoch, device, args):
         outputs = []
         imgidxes = []
 
-    #############################################################
-    # Semi-supervised learning
-    model.cluster_layer = None
-    model.category_layer = nn.Sequential(
-        nn.Linear(fd, args.nmb_category),
-        nn.Softmax(dim=1),
-    )
-    model.category_layer[0].weight.data.normal_(0, 0.01)
-    model.category_layer[0].bias.data.zero_()
-    model.category_layer = model.category_layer.double()
-    model.category_layer.to(device)
-
-    for i, (input_tensor, label) in enumerate(semi_loader):
-        input_var = torch.autograd.Variable(input_tensor.to(device))
-        label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
-
-        output = model(input_var)
-        semi_loss = crit(output, label_var.long())
-
-        # record loss
-        semi_losses.update(semi_loss.item(), input_tensor.size(0))
-
-        # compute gradient and do SGD step
-        opt.zero_grad()
-        semi_loss.backward()
-        opt.step()
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if args.verbose and (i % 5) == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-                  .format(epoch, i, len(loader), loss=semi_losses))
-
     return losses.avg, semi_losses.avg
+
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -275,6 +318,7 @@ def compute_features(dataloader, model, N, device, args):
          labels = np.concatenate(labels, axis=0)
          return features, input_tensors, labels
 
+
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
     samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
@@ -299,6 +343,7 @@ def sampling_echograms_full(args):
 
     return dataset_cp, dataset_semi
 
+
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
     samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler3_te.pt'))
@@ -310,6 +355,7 @@ def sampling_echograms_test(args):
         augmentation_function=None,
         data_transform_function=data_transform)
     return dataset_test
+
 
 def test(dataloader, model, fd, crit, device, args):
     if args.verbose:
@@ -432,12 +478,13 @@ def main(args):
 
     model = models.__dict__[args.arch](bn=True, num_cluster=args.nmb_cluster, num_category=args.nmb_category)
     fd = int(model.cluster_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
-    model.cluster_layer = None
     model.category_layer = None
-    # model.features = torch.nn.DataParallel(model.features)
+    model.cluster_layer = None
+    model.features = torch.nn.DataParallel(model.features)
     model = model.double()
     model.to(device)
     cudnn.benchmark = True
+    criterion = nn.CrossEntropyLoss()
 
     if args.optimizer is 'Adam':
         print('Adam optimizer: conv')
@@ -455,8 +502,6 @@ def main(args):
             momentum=args.momentum,
             weight_decay=10 ** args.wd,
         )
-
-    criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -529,6 +574,36 @@ def main(args):
     #                                               num_workers=args.workers,
     #                                               pin_memory=True,
     #                                               )
+
+    ######### pretrain
+
+    # pretrain
+    if args.start_epoch == 0:
+        print("Start pretrain upto %d epochs" % args.start_epoch)
+
+
+        model.cluster_layer = None
+        model.category_layer = nn.Sequential(
+            nn.Linear(fd, args.nmb_category),
+            nn.Softmax(dim=1),
+        )
+        model.category_layer[0].weight.data.normal_(0, 0.01)
+        model.category_layer[0].bias.data.zero_()
+        model.category_layer = model.category_layer.double()
+        model.category_layer.to(device)
+        optimizer_pretrain = torch.optim.Adam(
+            filter(lambda x: x.requires_grad, model.parameters()),
+            lr=args.lr_Adam_pretrain,
+            betas=(0.5, 0.99),
+            weight_decay=10 ** args.wd,
+        )
+        pretrain_loss_save = []
+        for epoch in range(args.pretrain_epoch):
+            pretrain_loss = pretrain(dataloader_semi, model, fd, criterion, optimizer_pretrain, epoch, device, args)
+            pretrain_loss_save.append(pretrain_loss)
+        torch.save(model.category_layer.state_dict(), './category_layer_pretrain.pt')
+        with open(os.path.join(args.exp, '..', 'pretrain_loss.pickle'), "wb") as f:
+            pickle.dump(pretrain_loss_save, f)
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
