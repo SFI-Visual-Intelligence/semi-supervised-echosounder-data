@@ -299,6 +299,53 @@ def sampling_echograms_full(args):
 
     return dataset_cp, dataset_semi
 
+def sampling_echograms_test(args):
+    path_to_echograms = paths.path_to_echograms()
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler3_te.pt'))
+    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
+
+    dataset_test = DatasetImg(
+        samplers_test,
+        args.sampler_probs,
+        augmentation_function=None,
+        data_transform_function=data_transform)
+    return dataset_test
+
+def test(dataloader, model, fd, crit, device, args):
+    if args.verbose:
+        print('Test')
+    batch_time = AverageMeter()
+    test_losses = AverageMeter()
+    end = time.time()
+
+    model.cluster_layer = None
+    model.category_layer = nn.Sequential(
+        nn.Linear(fd, args.nmb_category),  # nn.Linear(4096, num_cluster),
+        nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
+    )
+    # load_state_dict ?
+    model.category_layer[0].weight.data.normal_(0, 0.01)
+    model.category_layer[0].bias.data.zero_()
+    model.category_layer = model.category_layer.double()
+    model.category_layer.to(device)
+
+    model.eval()
+    with torch.no_grad():
+         for i, (input_tensor, label) in enumerate(dataloader):
+            input_tensor.double()
+            input_var = torch.autograd.Variable(input_tensor.to(device))
+            label_var = torch.autograd.Variable(label.to(device))
+            output = model(input_var)
+            loss = crit(output, label_var.long())
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if args.verbose and (i % 10) == 0:
+                print('{0} / {1}\t'
+                      'TEST_Loss: {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(dataloader), loss=test_losses))
+         return test_losses.avg
 # def sampling_echograms_eval(args):
 #     # echograms_eval = get_echograms(years=[2019], frequencies=[18, 38, 120, 200],
 #     #                                minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
@@ -447,7 +494,16 @@ def main(args):
                                                 num_workers=args.workers,
                                                 drop_last=False,
                                                 pin_memory=True)
+
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
+                                                shuffle=False,
+                                                batch_size=args.batch,
+                                                num_workers=args.workers,
+                                                drop_last=False,
+                                                pin_memory=True)
+
+    dataset_test = sampling_echograms_test(args)
+    dataloader_test = torch.utils.data.DataLoader(dataset_test,
                                                 shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
@@ -551,6 +607,9 @@ def main(args):
             loss = train(train_dataloader, dataloader_semi, model, fd, criterion, optimizer, epoch, device=device, args=args)
         print('Train time: {0:.2f} s'.format(time.time() - end))
 
+        test_loss = test(dataloader_test, model, fd, criterion, device, args)
+
+
         # if (epoch % args.save_epoch == 0):
         #     end = time.time()
         #     with open(os.path.join(args.exp, '..', 'tr_epoch_%d.pickle' % epoch), "wb") as f:
@@ -595,12 +654,14 @@ def main(args):
 
         print('epoch: ', type(epoch), epoch)
         print('loss: ', type(loss), loss)
+        print('Test loss: ', type(test_loss), test_loss)
         # print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
         # print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
         print('clustering_loss: ', type(clustering_loss), clustering_loss)
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(loss)
+        loss_collect[2].append(test_loss)
         # loss_collect[2].append(linear_svc.whole_score)
         # loss_collect[3].append(linear_svc.pair_score)
         loss_collect[4].append(clustering_loss)
