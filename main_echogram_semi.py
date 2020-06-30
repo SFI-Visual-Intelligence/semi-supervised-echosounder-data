@@ -337,6 +337,7 @@ def test(dataloader, model, fd, crit, device, args):
             label_var = torch.autograd.Variable(label.to(device))
             output = model(input_var)
             loss = crit(output, label_var.long())
+            test_losses.update(loss.item(), input_tensor.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -624,7 +625,7 @@ def main(args):
                   'Time: {1:.3f} s\n'
                   'Pseudo tr_loss: {2:.3f} \n'
                   'SEMI tr_loss: {3:.3f} \n'
-                  'TEST tr_loss: {4:.3f} \n'
+                  'TEST loss: {4:.3f} \n'
                   'Clustering loss: {5:.3f} \n'.format(epoch, time.time() - end, pseudo_loss, semi_loss, test_loss, clustering_loss))
 
             try:
