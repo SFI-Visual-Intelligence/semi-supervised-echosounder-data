@@ -674,3 +674,15 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
     main(args)
+
+'''
+data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
+
+for j in range(10):
+    dbdata = db(samplers_semi[-1][j])
+    print('######## ', j)
+    for i in range(4):
+        print(dbdata[i].min(), dbdata[i].max())
+
+data_f27 = data_transform(samplers_semi[-1][0])
+'''

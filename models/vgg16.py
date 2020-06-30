@@ -119,5 +119,5 @@ def vgg16(sobel=False, bn=True, out=1000):
 
 def vgg16_tweak(sobel=False, bn=True, num_cluster=64, num_category=3):
     dim = 4
-    model = VGG(make_layers(dim, bn), num_cluster, num_category, sobel)
+    model = VGG(make_layers(dim, bn), num_cluster, num_category)
     return model
