@@ -57,8 +57,8 @@ class VGG(nn.Module):
         #     self.sobel = None
 
     def forward(self, x):
-        if self.sobel:
-            x = self.sobel(x)
+        # if self.sobel:
+        #     x = self.sobel(x)
         x = self.features(x)
         x = x.view(x.size(0), -1)
         x = self.classifier(x)
