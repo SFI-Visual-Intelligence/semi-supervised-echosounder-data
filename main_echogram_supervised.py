@@ -551,8 +551,8 @@ def main(args):
                        os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
             torch.save(model.category_layer.state_dict(), os.path.join(args.exp,  '..', 'category_layer.pth.tar'))
 
-        with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
-            pickle.dump(pretrain_loss_collect, f)
+            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
+                pickle.dump(pretrain_loss_collect, f)
 
             if (epoch+1) % args.checkpoints == 0:
                 path = os.path.join(
@@ -569,6 +569,10 @@ def main(args):
                             'optimizer_category': optimizer_category.state_dict(),
                             }, path)
 
+
+if __name__ == '__main__':
+    args = parse_args()
+    main(args)
 
 
 
@@ -706,28 +710,6 @@ def main(args):
     #     cluster_log.log(deepcluster.images_lists)
 
         # save checkpoint
-
-        if (epoch+1) % args.checkpoints == 0:
-            path = os.path.join(
-                args.exp, '..',
-                'checkpoints',
-                'checkpoint_' + str(epoch) + '.pth.tar',
-            )
-            if args.verbose:
-                print('Save checkpoint at: {0}'.format(path))
-            torch.save({'epoch': epoch + 1,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'optimizer_body': optimizer_body.state_dict(),
-                        'optimizer_category': optimizer_category.state_dict(),
-                        }, path)
-
-
-
-
-if __name__ == '__main__':
-    args = parse_args()
-    main(args)
 
 
 '''
