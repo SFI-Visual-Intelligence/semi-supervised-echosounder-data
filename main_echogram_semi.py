@@ -530,9 +530,6 @@ def main(args):
                                                           epoch=epoch, device=device, args=args)
             test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
 
-            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
-                pickle.dump(pretrain_loss_collect, f)
-
             # print log
             if args.verbose:
                 print('###### Epoch [{0}] ###### \n'
@@ -555,7 +552,10 @@ def main(args):
                        os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
             torch.save(model.category_layer.state_dict(), os.path.join(args.exp,  '..', 'category_layer.pth.tar'))
 
-            if (epoch + 1) % args.checkpoints == 0:
+            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
+                pickle.dump(pretrain_loss_collect, f)
+
+            if (epoch+1) % args.checkpoints == 0:
                 path = os.path.join(
                     args.exp, '..',
                     'checkpoints',
