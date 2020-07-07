@@ -569,7 +569,6 @@ def main(args):
                             'optimizer_body': optimizer_body.state_dict(),
                             'optimizer_category': optimizer_category.state_dict(),
                             }, path)
-            args.pretrain_epoch = epoch + 1
 
     ############################
     ############################
@@ -579,9 +578,7 @@ def main(args):
 
     nmi_save = []
     loss_collect = [[], [], [], [], [], [], []]
-    total_epoch_count = 0
-    args.pretrain_epoch = args.start_epoch
-    for epoch in range(args.pretrain_epoch, args.epochs):
+    for epoch in range(args.start_epoch, args.epochs):
         end = time.time()
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
