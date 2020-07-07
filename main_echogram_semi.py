@@ -57,7 +57,7 @@ def parse_args():
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
-    parser.add_argument('--lr_Adam', default=1e-4, type=float,
+    parser.add_argument('--lr_Adam', default=3e-5, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--lr_SGD', default=5e-3, type=float,
                         help='learning rate (default: 0.05)')
@@ -400,7 +400,7 @@ def main(args):
         optimizer_body = torch.optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
             lr=args.lr_Adam,
-            betas=(0.5, 0.99),
+            betas=(0.9, 0.999),
             weight_decay=10 ** args.wd,
         )
     else:
@@ -432,7 +432,7 @@ def main(args):
         optimizer_category = torch.optim.Adam(
             filter(lambda x: x.requires_grad, model.category_layer.parameters()),
             lr=args.lr_Adam,
-            betas=(0.5, 0.99),
+            betas=(0.9, 0.999),
             weight_decay=10 ** args.wd,
         )
     else:
@@ -1382,7 +1382,7 @@ def main(args):
         optimizer = torch.optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
             lr=args.lr_Adam,
-            betas=(0.5, 0.99),
+            betas=(0.9, 0.999),
             weight_decay=10 ** args.wd,
         )
     else:
@@ -1483,7 +1483,7 @@ def main(args):
         optimizer_pretrain = torch.optim.Adam(
             filter(lambda x: x.requires_grad, model.parameters()),
             lr=args.lr_Adam_pretrain,
-            betas=(0.5, 0.99),
+            betas=(0.9, 0.999),
             weight_decay=10 ** args.wd,
         )
         pretrain_loss_save = []
