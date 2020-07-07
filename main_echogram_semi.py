@@ -580,7 +580,7 @@ def main(args):
     nmi_save = []
     loss_collect = [[], [], [], [], [], [], []]
     total_epoch_count = 0
-    for epoch in range(args.pretrain_epoch, args.epochs):
+    for epoch in range(args.start_epoch, args.epochs):
         end = time.time()
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
