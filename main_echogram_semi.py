@@ -87,7 +87,7 @@ def parse_args():
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
                         help='4 frequencies [18, 38, 120, 200]')
-    parser.add_argument('--window_dim', type=int, default=32,
+    parser.add_argument('--window_dim', type=int, default=16,
                         help='window size')
     parser.add_argument('--partition', type=str, default='train_only',
                         help='echogram partition (tr/val/te) by year')
@@ -100,7 +100,7 @@ def parse_args():
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
+    parser.add_argument('--stride', type=int, default=16, help='stride of echogram patches for eval')
     parser.add_argument('--semi_ratio', type=float, default=0.05, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
