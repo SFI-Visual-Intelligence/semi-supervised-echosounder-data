@@ -19,7 +19,7 @@ class VGG(nn.Module):
         self.features = features
         # window size 128 / 2^5 = 4
         self.classifier = nn.Sequential(
-            nn.Linear(128 * 1 * 1, 4096),
+            nn.Linear(512 * 1 * 1, 4096),
             nn.ReLU(True),
             nn.Dropout(0.5),
             nn.Linear(4096, 4096),
