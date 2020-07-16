@@ -55,7 +55,7 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_category', type=int, default=3,
+    parser.add_argument('--nmb_category', type=int, default=6,
                         help='number of ground truth classes(category)')
     parser.add_argument('--lr_Adam', default=3e-5, type=float,
                         help='learning rate (default: 0.05)')
@@ -101,7 +101,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.05, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.01, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
@@ -332,7 +332,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
@@ -356,7 +356,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler3_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(
