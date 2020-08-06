@@ -54,10 +54,10 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_category', type=int, default=6,
+    parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
     parser.add_argument('--lr_Adam', default=3e-5, type=float,
-                        help='learning rate (default: 0.05)')
+                        help='learning rate (default: 1e-4)')
     parser.add_argument('--lr_SGD', default=5e-3, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
@@ -185,153 +185,9 @@ def test(dataloader, model, crit, device, args):
     test_accuracy = sum(accu_list) / len(accu_list)
     return test_losses.avg, test_accuracy
 
-# def compute_features(dataloader, model, N, device, args):
-#     if args.verbose:
-#         print('Compute features')
-#     batch_time = AverageMeter()
-#     model.eval()
-#     # discard the label information in the dataloader
-#     input_tensors = []
-#     labels = []
-#     with torch.no_grad():
-#          for i, (input_tensor, label) in enumerate(dataloader):
-#             end = time.time()
-#             input_tensor.double()
-#             input_var = torch.autograd.Variable(input_tensor.to(device))
-#             aux = model(input_var).data.cpu().numpy()
-#
-#             if i == 0:
-#                 features = np.zeros((N, aux.shape[1]), dtype='float32')
-#
-#             aux = aux.astype('float32')
-#             if i < len(dataloader) - 1:
-#                 features[i * args.batch: (i + 1) * args.batch] = aux
-#             else:
-#                 # special treatment for final batch
-#                 features[i * args.batch:] = aux
-#             input_tensors.append(input_tensor.data.cpu().numpy())
-#             labels.append(label.data.cpu().numpy())
-#
-#             # measure elapsed time
-#             batch_time.update(time.time() - end)
-#             if args.verbose and (i % 10) == 0:
-#                 print('{0} / {1}\t'
-#                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
-#                       .format(i, len(dataloader), batch_time=batch_time))
-#          input_tensors = np.concatenate(input_tensors, axis=0)
-#          labels = np.concatenate(labels, axis=0)
-#          return features, input_tensors, labels
-
-# def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epoch, device, args):
-#     batch_time = AverageMeter()
-#     losses = AverageMeter()
-#     semi_losses = AverageMeter()
-#
-#     ##################################
-#     ##################################
-#     # SELF-SUPERVISION (PSEUDO-LABELS)
-#     ##################################
-#     ##################################
-#
-#     model.category_layer = None
-#     model.cluster_layer = nn.Sequential(
-#         nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
-#         nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
-#     )
-#     # load_state_dict ?
-#     model.cluster_layer[0].weight.data.normal_(0, 0.01)
-#     model.cluster_layer[0].bias.data.zero_()
-#     model.cluster_layer = model.cluster_layer.double()
-#     model.cluster_layer.to(device)
-#
-#     # switch to train mode
-#     model.train()
-#     end = time.time()
-#     for i, ((input_tensor, label), pseudo_target, imgidx) in enumerate(loader):
-#
-#         input_var = torch.autograd.Variable(input_tensor.to(device))
-#         pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
-#         output = model(input_var)
-#         loss = crit(output, pseudo_target_var.long())
-#
-#         # record loss
-#         losses.update(loss.item(), input_tensor.size(0))
-#
-#         # compute gradient and do SGD step
-#         opt_body.zero_grad()
-#         loss.backward()
-#         opt_body.step()
-#
-#         # measure elapsed time
-#         batch_time.update(time.time() - end)
-#         end = time.time()
-#
-#         if args.verbose and (i % 5) == 0:
-#             print('Epoch: [{0}][{1}/{2}]\t'
-#                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-#                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-#                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
-#
-#     ##################################
-#     ##################################
-#     # SEMI-SUPERVISION
-#     ##################################
-#     ##################################
-#
-#     model.cluster_layer = None
-#     model.category_layer = nn.Sequential(
-#         nn.Linear(fd, args.nmb_category),
-#         nn.Softmax(dim=1),
-#     )
-#     model.category_layer[0].weight.data.normal_(0, 0.01)
-#     model.category_layer[0].bias.data.zero_()
-#     model.category_layer = model.category_layer.double()
-#     model.category_layer.to(device)
-#
-#     category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
-#     if os.path.isfile(category_save):
-#         category_layer_param = torch.load(category_save)
-#         model.category_layer.load_state_dict(category_layer_param)
-#
-#     semi_output_save = []
-#     semi_label_save = []
-#     for i, (input_tensor, label) in enumerate(semi_loader):
-#         input_var = torch.autograd.Variable(input_tensor.to(device))
-#         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
-#
-#         output = model(input_var)
-#         semi_loss = crit(output, label_var.long())
-#
-#         # compute gradient and do SGD step
-#         opt_category.zero_grad()
-#         opt_body.zero_grad()
-#         semi_loss.backward()
-#         opt_category.step()
-#         opt_body.step()
-#
-#         # record loss
-#         semi_losses.update(semi_loss.item(), input_tensor.size(0))
-#
-#         # Record accuracy
-#         output = torch.argmax(output, axis=1)
-#         semi_output_save.append(output.data.cpu().numpy())
-#         semi_label_save.append(label.data.cpu().numpy())
-#
-#         # measure elapsed time
-#         if args.verbose and (i % 5) == 0:
-#             print('Epoch: [{0}][{1}/{2}]\t'
-#                   'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-#                   .format(epoch, i, len(semi_loader), loss=semi_losses))
-#
-#     semi_output_flat = flatten_list(semi_output_save)
-#     semi_label_flat = flatten_list(semi_label_save)
-#     semi_accu_list = [out == lab for (out, lab) in zip(semi_output_flat, semi_label_flat)]
-#     semi_accuracy = sum(semi_accu_list)/len(semi_accu_list)
-#     return losses.avg, semi_losses.avg, semi_accuracy
-
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
@@ -355,7 +211,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(
@@ -451,12 +307,6 @@ def main(args):
 
     print('Sample echograms.')
     dataset_cp, dataset_semi = sampling_echograms_full(args)
-    # dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
-    #                                             shuffle=False,
-    #                                             batch_size=args.batch,
-    #                                             num_workers=args.workers,
-    #                                             drop_last=False,
-    #                                             pin_memory=True)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
                                                 shuffle=False,
@@ -472,9 +322,6 @@ def main(args):
                                                 num_workers=args.workers,
                                                 drop_last=False,
                                                 pin_memory=True)
-
-    # clustering algorithm to use
-    deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -573,144 +420,6 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
     main(args)
-
-
-
-    # ############################
-    # ############################
-    # # SEMI-SUPERVISED
-    # ############################
-    # ############################
-    #
-    # nmi_save = []
-    # loss_collect = [[], [], [], [], [], [], []]
-    # total_epoch_count = 0
-    # for epoch in range(args.pretrain_epoch, args.epochs):
-    #     end = time.time()
-    #     model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-    #     model.cluster_layer = None
-    #     model.category_layer = None
-    #     features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
-    #
-    #     ############################
-    #     ############################
-    #     # PSEUDO-LABEL GENERATION
-    #     ############################
-    #     ############################
-    #
-    #     print('Cluster the features')
-    #     clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
-    #
-    #     nan_location = np.isnan(pca_features)
-    #     inf_location = np.isinf(pca_features)
-    #     if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-    #         print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
-    #         print('Skip epoch ', epoch)
-    #         torch.save(pca_features, 'pca_NaN_%d.pth.tar' % epoch)
-    #         torch.save(features_train, 'feature_NaN_%d.pth.tar' % epoch)
-    #         continue
-    #
-    #     # save patches per epochs
-    #     cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
-    #                     labels_train]
-    #
-    #     if (epoch % args.save_epoch == 0):
-    #         with open(os.path.join(args.exp, '..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
-    #             pickle.dump(cp_epoch_out, f)
-    #         with open(os.path.join(args.exp, '..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
-    #             pickle.dump(pca_features, f)
-    #
-    #     print('Assign pseudo labels')
-    #     size_cluster = np.zeros(len(deepcluster.images_lists))
-    #     for i,  _list in enumerate(deepcluster.images_lists):
-    #         size_cluster[i] = len(_list)
-    #     print('size in clusters: ', size_cluster)
-    #     img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
-    #     train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-    #                                               img_label_pair_train)  # Reassigned pseudolabel
-    #
-    #     # uniformly sample per target
-    #     sampler_train = UnifLabelSampler(int(len(train_dataset)),
-    #                                deepcluster.images_lists)
-    #
-    #     train_dataloader = torch.utils.data.DataLoader(
-    #         train_dataset,
-    #         batch_size=args.batch,
-    #         shuffle=False,
-    #         num_workers=args.workers,
-    #         sampler=sampler_train,
-    #         pin_memory=True,
-    #     )
-    #
-    #     ####################################################################
-    #     ####################################################################
-    #     # TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
-    #     ####################################################################
-    #     ####################################################################
-    #
-    #     # Recover classifier with ReLU (that is not used in clustering)
-    #     mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-    #     mlp.append(nn.ReLU(inplace=True).to(device))
-    #     model.classifier = nn.Sequential(*mlp)
-    #
-    #     ####################################################################
-    #     ####################################################################
-    #     # train network with clusters as pseudo-labels
-    #     ####################################################################
-    #     ####################################################################
-    #     with torch.autograd.set_detect_anomaly(True):
-    #         pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
-    #                                                            optimizer_body, optimizer_category, epoch, device=device, args=args)
-    #     test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
-    #
-    #     if args.verbose:
-    #         print('###### Epoch [{0}] ###### \n'
-    #               'Time: {1:.3f} s\n'
-    #               'Pseudo tr_loss: {2:.3f} \n'
-    #               'SEMI tr_loss: {3:.3f} \n'
-    #               'TEST loss: {4:.3f} \n'
-    #               'Clustering loss: {5:.3f} \n'
-    #               'SEMI accu: {6:.3f} \n'
-    #               'TEST accu: {7:.3f} \n'
-    #               .format(epoch, time.time() - end, pseudo_loss, semi_loss,
-    #                       test_loss, clustering_loss, semi_accuracy, test_accuracy))
-    #         try:
-    #             nmi = normalized_mutual_info_score(
-    #                 clustering.arrange_clustering(deepcluster.images_lists),
-    #                 clustering.arrange_clustering(cluster_log.data[-1])
-    #             )
-    #             nmi_save.append(nmi)
-    #             print('NMI against previous assignment: {0:.3f}'.format(nmi))
-    #             with open("./nmi_collect.pickle", "wb") as ff:
-    #                 pickle.dump(nmi_save, ff)
-    #         except IndexError:
-    #             pass
-    #         print('####################### \n')
-    #     # save running checkpoint
-    #     torch.save({'epoch': epoch + 1,
-    #                 'arch': args.arch,
-    #                 'state_dict': model.state_dict(),
-    #                 'optimizer_body': optimizer_body.state_dict(),
-    #                 'optimizer_category': optimizer_category.state_dict(),
-    #                 },
-    #                os.path.join(args.exp, '..', 'checkpoint.pth.tar'))
-    #     torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '..', 'category_layer.pth.tar'))
-    #
-    #     loss_collect[0].append(epoch)
-    #     loss_collect[1].append(pseudo_loss)
-    #     loss_collect[2].append(semi_loss)
-    #     loss_collect[3].append(clustering_loss)
-    #     loss_collect[4].append(test_loss)
-    #     loss_collect[5].append(semi_accuracy)
-    #     loss_collect[6].append(test_accuracy)
-    #     with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
-    #         pickle.dump(loss_collect, f)
-    #
-    #     # save cluster assignments
-    #     cluster_log.log(deepcluster.images_lists)
-
-        # save checkpoint
-
 
 '''
         # input_tensors = []
