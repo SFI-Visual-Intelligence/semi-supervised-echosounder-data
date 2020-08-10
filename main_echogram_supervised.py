@@ -190,7 +190,10 @@ def sampling_echograms_full(args):
     samplers_train = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
-    samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
+    samplers_semi = []
+    for samplers in samplers_train:
+        np.random.shuffle(samplers)
+        samplers_semi.append(samplers[:semi_count])
 
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])

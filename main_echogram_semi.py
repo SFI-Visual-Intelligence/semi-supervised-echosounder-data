@@ -55,10 +55,10 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_category', type=int, default=6,
+    parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
     parser.add_argument('--lr_Adam', default=3e-5, type=float,
-                        help='learning rate (default: 0.05)')
+                        help='learning rate (default: 1e-4)')
     parser.add_argument('--lr_SGD', default=5e-3, type=float,
                         help='learning rate (default: 0.05)')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
@@ -332,10 +332,13 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
-    samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
+    samplers_semi = []
+    for samplers in samplers_train:
+        np.random.shuffle(samplers)
+        samplers_semi.append(samplers[:semi_count])
 
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
@@ -356,7 +359,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(
