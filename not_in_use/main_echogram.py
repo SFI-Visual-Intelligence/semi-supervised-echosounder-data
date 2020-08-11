@@ -182,7 +182,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         if n % args.checkpoints == 0:
             path = os.path.join(
                 args.exp,
-                'checkpoints',
+                '../checkpoints',
                 'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
             )
             if args.verbose:
@@ -459,7 +459,7 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, 'checkpoints')
+    exp_check = os.path.join(args.exp, '../checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 

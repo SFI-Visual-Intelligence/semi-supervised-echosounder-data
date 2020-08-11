@@ -109,12 +109,12 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, 'checkpoints')
+    exp_check = os.path.join(args.exp, '../checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
     # creating cluster assignments log
-    cluster_log = Logger(os.path.join(args.exp, 'clusters'))
+    cluster_log = Logger(os.path.join(args.exp, '../clusters'))
 
     # preprocessing of data
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -247,7 +247,7 @@ def train(loader, model, crit, opt, epoch):
         if n % args.checkpoints == 0:
             path = os.path.join(
                 args.exp,
-                'checkpoints',
+                '../checkpoints',
                 'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
             )
             if args.verbose:

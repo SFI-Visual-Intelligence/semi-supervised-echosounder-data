@@ -26,24 +26,16 @@ import paths
 import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
-from clustering import preprocess_features
+
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
-#############
-from batch.dataset import DatasetGrid
-from batch.samplers.sampler_test import SampleFull
-from batch.samplers.get_all_patches import GetAllPatches
-from data.echogram import Echogram
-#############
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
-from classifier_linearSVC import SimpleClassifier
+from classifier_linearSVC import FeatureLoad
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
-
-
 # def cluster_acc(Y_pred, Y):
 #     assert Y_pred.size == Y.size
 #     D = max(Y_pred.max(), Y.max())+1
@@ -57,18 +49,17 @@ def parse_args():
     current_dir = os.getcwd()
     parser = argparse.ArgumentParser(description='PyTorch Implementation of DeepCluster')
 
+    parser.add_argument("--mode", default='client')
+    parser.add_argument("--port", default=52162)
     parser.add_argument('--arch', '-a', type=str, metavar='ARCH',
                         choices=['alexnet', 'vgg16', 'vgg16_tweak'], default='vgg16_tweak',
                         help='CNN architecture (default: vgg16)')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=60,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--lr_Adam', default=1e-4, type=float,
+    parser.add_argument('--lr', default=1e-4, type=float,
                         help='learning rate (default: 0.05)')
-    parser.add_argument('--lr_SGD', default=5e-3, type=float,
-                        help='learning rate (default: 0.05)')
-    parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
     parser.add_argument('--wd', default=-5, type=float,
                         help='weight decay pow (default: -5)')
     parser.add_argument('--reassign', type=float, default=1,
@@ -76,17 +67,18 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=5000,
+    parser.add_argument('--epochs', type=int, default=2000,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=30, type=int,
+    parser.add_argument('--save_epoch', default=20, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=16, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
-                        help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=10000,
+                        help='pca dimension (default: 16)')
+    parser.add_argument('--momentum', default=0.9, type=float, help='momentum (default: 0.9)')
+    parser.add_argument('--checkpoints', type=int, default=200,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
@@ -96,22 +88,15 @@ def parse_args():
                         help='window size')
     parser.add_argument('--partition', type=str, default='train_only',
                         help='echogram partition (tr/val/te) by year')
+    parser.add_argument('--iteration_train', type=int, default=1200,
+                        help='num_tr_iterations per one batch and epoch')
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
-                        default=os.path.join(current_dir, '..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
+                        default=os.path.join(current_dir, 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
-    parser.add_argument('--optimizer', type=str, metavar='OPTIM',
-                        choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--stride', type=int, default=64, help='stride of echogram patches for eval')
-
-    # parser.add_argument('--iteration_train', type=int, default=1200,
-    #                     help='num_tr_iterations per one batch and epoch')
-    # parser.add_argument("--mode", default='client')
-    # parser.add_argument("--port", default=52162)
-
     return parser.parse_args(args=[])
 
 def zip_img_label(img_tensors, labels):
@@ -139,22 +124,17 @@ def train(loader, model, crit, opt, epoch, device, args):
     model.train()
 
     # create an optimizer for the last fc layer
-    if args.optimizer is 'Adam':
-        print('Adam optimizer: top_layer')
-        optimizer_tl = torch.optim.Adam(
-            model.top_layer.parameters(),
-            lr=args.lr_Adam,
-            betas=(0.5, 0.99),
-            weight_decay=10**args.wd,
-        )
-    else:
-        print('SGD optimizer: top_layer')
-        optimizer_tl = torch.optim.SGD(
-            model.top_layer.parameters(),
-            lr=args.lr_SGD,
-            momentum= args.momentum,
-            weight_decay=10**args.wd,
-        )
+    # optimizer_tl = torch.optim.SGD(
+    #     model.top_layer.parameters(),
+    #     lr=args.lr,
+    #     weight_decay=10**args.wd,
+    # )
+    optimizer_tl = torch.optim.Adam(
+        model.top_layer.parameters(),
+        lr=args.lr,
+        betas=(0.5, 0.99),
+        weight_decay=10**args.wd,
+    )
 
     end = time.time()
     input_tensors = []
@@ -170,8 +150,8 @@ def train(loader, model, crit, opt, epoch, device, args):
         n = len(loader) * epoch + i
         if n % args.checkpoints == 0:
             path = os.path.join(
-                args.exp, '..',
-                'checkpoints',
+                args.exp,
+                '../checkpoints',
                 'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
             )
             if args.verbose:
@@ -190,6 +170,8 @@ def train(loader, model, crit, opt, epoch, device, args):
         loss = crit(output, pseudo_target_var.long())
 
         # record loss
+        # print('loss :', loss)
+        # print('input_tensor.size(0) :', input_tensor.size(0))
         losses.update(loss.item(), input_tensor.size(0))
 
         # compute gradient and do SGD step
@@ -215,20 +197,67 @@ def train(loader, model, crit, opt, epoch, device, args):
         labels.append(label)
         imgidxes.append(imgidx)
 
-        input_tensors = []
-        labels = []
-        pseudo_targets = []
-        outputs = []
-        imgidxes = []
+    input_tensors = np.concatenate(input_tensors, axis=0)
+    pseudo_targets = np.concatenate(pseudo_targets, axis=0)
+    outputs = np.concatenate(outputs, axis=0)
+    labels = np.concatenate(labels, axis=0)
+    imgidxes = np.concatenate(imgidxes, axis=0)
+    tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses.avg, imgidxes]
 
-    # input_tensors = np.concatenate(input_tensors, axis=0)
-    # pseudo_targets = np.concatenate(pseudo_targets, axis=0)
-    # outputs = np.concatenate(outputs, axis=0)
-    # labels = np.concatenate(labels, axis=0)
-    # imgidxes = np.concatenate(imgidxes, axis=0)
-    # tr_epoch_out = [input_tensors, pseudo_targets, outputs, labels, losses.avg, imgidxes]
-    # return losses.avg, tr_epoch_out
-    return losses.avg
+    return losses.avg, tr_epoch_out
+    # return losses.avg
+
+def validation(loader, model, crit, epoch, device, args):
+    """Training of the CNN.
+        Args:
+            loader (torch.utils.data.DataLoader): Data loader
+            model (nn.Module): CNN
+            crit (torch.nn): loss
+            opt (torch.optim.SGD): optimizer for every parameters with True
+                                   requires_grad in model except top layer
+            epoch (int)
+    """
+    batch_time = AverageMeter()
+    val_losses = AverageMeter()
+    data_time = AverageMeter()
+
+    # switch to train mode
+    model.eval()
+    end = time.time()
+    input_tensors = []
+    labels = []
+    outputs = []
+    with torch.no_grad():
+        for i, (input_tensor, label) in enumerate(loader):
+            data_time.update(time.time() - end)
+            input_var = torch.autograd.Variable(input_tensor.to(device))
+            # target_var = torch.autograd.Variable(target.to(device,  non_blocking=True))
+
+            output = model(input_var)
+            # val_loss = crit(output, target_var.long())
+
+            # record loss
+            # val_losses.update(val_loss.item(), input_tensor.size(0))
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            # if args.verbose and (i % 10) == 0:
+            #     print('Epoch: [{0}][{1}/{2}]\t\t'
+            #           'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+            #           'Val_Loss: {val_loss.val:.4f} ({val_loss.avg:.4f})'
+            #           .format(epoch, i, len(loader), batch_time=batch_time, val_loss=val_losses))
+
+            input_tensors.append(input_tensor.data.cpu().numpy())
+            outputs.append(output.data.cpu().numpy())
+            labels.append(label)
+
+        input_tensors = np.concatenate(input_tensors, axis=0)
+        labels = np.concatenate(labels, axis=0)
+        outputs = np.concatenate(outputs, axis=0)
+        val_epoch_out = [input_tensors, labels, outputs, val_losses]
+        return val_losses.avg, val_epoch_out
+        # return val_epoch_out
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -239,7 +268,12 @@ def compute_features(dataloader, model, N, device, args):
     # discard the label information in the dataloader
     input_tensors = []
     labels = []
+    # center_location_heights = []
+    # center_location_widths = []
+    # ecnames = []
+    # labelmaps = []
     with torch.no_grad():
+         # for i, (input_tensor, label, center_location, ecname, labelmap) in enumerate(dataloader):
          for i, (input_tensor, label) in enumerate(dataloader):
             input_tensor.double()
             input_var = torch.autograd.Variable(input_tensor.to(device))
@@ -266,93 +300,82 @@ def compute_features(dataloader, model, N, device, args):
 
             input_tensors.append(input_tensor.data.cpu().numpy())
             labels.append(label.data.cpu().numpy())
+            # center_location_heights.append(center_location[0].data.cpu().numpy())
+            # center_location_widths.append(center_location[1].data.cpu().numpy())
+            # ecnames.append(ecname)
+            # labelmaps.append(labelmap.data.cpu().numpy())
+
          input_tensors = np.concatenate(input_tensors, axis=0)
          labels = np.concatenate(labels, axis=0)
+         # center_location_heights = np.concatenate(center_location_heights, axis=0)
+         # center_location_widths = np.concatenate(center_location_widths, axis=0)
+         # ecnames = np.concatenate(ecnames, axis=0)
+         # labelmaps = np.concatenate(labelmaps, axis=0)
+         # return features, labels, (center_location_heights, center_location_widths), ecnames, input_tensors, labelmaps
          return features, input_tensors, labels
 
 def sampling_echograms_full(args):
+    # idx_2000 = np.random.choice(3000, size=2000, replace=False).tolist()
+    # sampler_2000 = []
+    # for i in range(5):
+    #     sampler_2000.append([samplers_train[i][idx] for idx in idx_2000])
+    # torch.save(sampler_2000, 'samplers_2000.pt')
+    # path_to_echograms = "/Users/changkyu/Documents/GitHub/echogram/memmap/memmap_set"
+    # bg = torch.load(os.path.join(path_to_echograms, 'numpy_bg_2999.pt')) + \
+    #      torch.load(os.path.join(path_to_echograms, 'numpy_bg_5999.pt'))
+    # bg_idx = np.random.choice(np.arange(len(bg)), size=3000, replace=False)
+    # bg = [bg[idx] for idx in bg_idx]
+    #
+    # sbsh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_2999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_5999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_8999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_11999.pt')) +\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh01_12667.pt'))
+    # sbsh01_idx = np.random.choice(np.arange(len(sbsh01)), size=3000, replace=False)
+    # sbsh01 = [sbsh01[idx] for idx in sbsh01_idx]
+    #
+    # sbsh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_2999.pt'))+\
+    #          torch.load(os.path.join(path_to_echograms, 'numpy_sbsh27_3079.pt'))
+    # sbsh27_idx = np.random.choice(np.arange(len(sbsh27)), size=3000, replace=False)
+    # sbsh27 = [sbsh27[idx] for idx in sbsh27_idx]
+    #
+    # sh01 = torch.load(os.path.join(path_to_echograms, 'numpy_sh01_2999.pt'))+\
+    #        torch.load(os.path.join(path_to_echograms, 'numpy_sh01_4046.pt'))
+    # sh01_idx = np.random.choice(np.arange(len(sh01)), size=3000, replace=False)
+    # sh01 = [sh01[idx] for idx in sh01_idx]
+    #
+    # sh27 = torch.load(os.path.join(path_to_echograms, 'numpy_sh27_2999.pt'))+\
+    #        torch.load(os.path.join(path_to_echograms, 'numpy_sh27_3549.pt'))
+    # sh27_idx = np.random.choice(np.arange(len(sh27)), size=3000, replace=False)
+    # sh27 = [sh27[idx] for idx in sh27_idx]
+    # samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
+    # torch.save(samplers_train, 'samplers_3000.pt')
+    # samplers_train = [bg, sh27, sbsh27, sh01, sbsh01]
+    # def sample_align(samplers):
+    #     num_samples = []
+    #     new_samplers = []
+    #     for i in range(len(samplers)):
+    #         num_samples.append(len(samplers[i]))
+    #     max_num_sample = np.min(num_samples)
+    #     print(max_num_sample)
+    #     for i in range(len(samplers)):
+    #         new_samplers.append(np.random.choice(samplers[i], size=max_num_sample, replace=False))
+    #     return new_samplers
+
+    # path_to_echograms = '/Users/changkyu/Documents/GitHub/echogram/memmap/memmap_set/'
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_sb_1024_3.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'samplers_500_three.pt'))
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_cp = DatasetImg(
         samplers_train,
+        1500,
         args.sampler_probs,
         augmentation_function=augmentation,
         data_transform_function=data_transform)
     return dataset_cp
 
-def sampling_echograms_eval(args):
-    # echograms_eval = get_echograms(years=[2019], frequencies=[18, 38, 120, 200],
-    #                                minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
-    # stride_eval = [args.stride, args.stride]
-    # gap_eval = GetAllPatches(echograms_eval, window_size, stride_eval, fish_type=[1, 27], random_offset_ratio=1024, phase='eval')
-    # echograms_eval = gap_eval.target_echograms
-    window_size = [args.window_dim, args.window_dim]
-    path_to_eval = paths.path_to_eval()
-    eval_dir_names = ['2019847-D20190512-T140210', '2019847-D20190512-T161218', '2019847-D20190512-T143430', '2019847-D20190512-T153731']
-    echograms_eval = [Echogram(os.path.join(path_to_eval, e)) for e in eval_dir_names]
-    sampler_eval = SampleFull(echograms_eval, window_size, args.stride)
-    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
-    dataset_eval = DatasetGrid(
-        sampler_eval,
-        window_size,
-        args.frequencies,
-        data_transform_function=data_transform)
-    return dataset_eval
-
-def evaluate(loader, model, device, args):
-    print("####################### Start evaluate #######################")
-    fd = int(model.top_layer[0].weight.size()[1])
-    torch.save(model.top_layer.state_dict(), './top_layer_eval.pt')
-    N = loader.dataset.__len__()
-    input_tensors = []
-
-    features = []
-    outputs = []
-
-    with torch.no_grad():
-        for i, (input_tensor, _) in enumerate(loader):
-            input_tensor.double()
-            input_var = torch.autograd.Variable(input_tensor.to(device))
-
-            # get vectorial expression
-            model.top_layer = None
-            aux = model(input_var)
-
-            # recall top layer
-            model.top_layer = nn.Sequential(
-                nn.Linear(fd, args.nmb_cluster),
-                nn.Softmax(dim=1),
-            )
-            model.top_layer.load_state_dict(torch.load('./top_layer_eval.pt'))
-            model.top_layer = model.top_layer.double()
-            model.top_layer.to(device)
-
-            out = model.top_layer_forward(aux)
-
-            input_tensors.extend(input_tensor.data.cpu().numpy())
-            features.extend(aux.data.cpu().numpy())
-            outputs.extend(out.data.cpu().numpy())
-
-            # if i == 0:
-            #     features = np.zeros((N, aux.shape[1]), dtype='float32')
-            #     outputs = np.zeros((N, out.shape[1]), dtype='float32')
-            # aux = aux.astype('float32')
-            # out = out.astype('float32')
-            # if i < len(loader) - 1:
-            #     features[i * args.batch: (i + 1) * args.batch] = aux
-            #     outputs[i * args.batch: (i + 1) * args.batch] = out
-            # else:
-            #     features[i * args.batch:] = aux
-            #     outputs[i * args.batch:] = out
-
-    echograms = loader.dataset.sampler_test.echograms
-    center_locations = loader.dataset.sampler_test.center_locations
-    eval_epoch_out = [features, outputs, input_tensors, echograms, center_locations]
-    print("####################### End evaluate #######################")
-    return eval_epoch_out
 
 def main(args):
     # fix random seeds
@@ -374,24 +397,20 @@ def main(args):
     model = model.double()
     model.to(device)
     cudnn.benchmark = True
+    # create optimizer
 
-    if args.optimizer is 'Adam':
-        print('Adam optimizer: conv')
-        optimizer = torch.optim.Adam(
-            filter(lambda x: x.requires_grad, model.parameters()),
-            lr=args.lr_Adam,
-            betas=(0.5, 0.99),
-            weight_decay=10 ** args.wd,
-        )
-    else:
-        print('SGD optimizer: conv')
-        optimizer = torch.optim.SGD(
-            filter(lambda x: x.requires_grad, model.parameters()),
-            lr=args.lr_SGD,
-            momentum=args.momentum,
-            weight_decay=10 ** args.wd,
-        )
-
+    # optimizer = torch.optim.SGD(
+    #     filter(lambda x: x.requires_grad, model.parameters()),
+    #     lr=args.lr,
+    #     momentum=args.momentum,
+    #     weight_decay=10**args.wd,
+    # )
+    optimizer = torch.optim.Adam(
+        filter(lambda x: x.requires_grad, model.parameters()),
+        lr=args.lr,
+        betas= (0.5, 0.99),
+        weight_decay=10 ** args.wd,
+    )
     criterion = nn.CrossEntropyLoss()
 
     # optionally resume from a checkpoint
@@ -414,12 +433,15 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp,  '..', 'checkpoints')
+    exp_check = os.path.join(args.exp, '../checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
     # creating cluster assignments log
-    cluster_log = Logger(os.path.join(args.exp,  '..', 'clusters.pickle'))
+    cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
+
+    # load dataset (initial echograms)
+    window_size = [args.window_dim, args.window_dim]
 
     # # Create echogram sampling index
     print('Sample echograms.')
@@ -438,60 +460,31 @@ def main(args):
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
     #                   deepcluster = clustering.Kmeans(no.cluster, dim.pca)
 
-    loss_collect = [[], [], [], [], []]
-    nmi_save = []
-
-    # for evaluation
-    dataset_eval = sampling_echograms_eval(args)
-    eval_dataloader = torch.utils.data.DataLoader(dataset_eval,
-                                                  batch_size=args.batch,
-                                                  shuffle=False,
-                                                  num_workers=args.workers,
-                                                  pin_memory=True,
-                                                  )
+    loss_collect = [[], [], []]
 
     # training convnet with DeepCluster
     for epoch in range(args.start_epoch, args.epochs):
 
         # remove head
         model.top_layer = None
-        model.classifier = nn.Sequential(*list(model.classifier.children()))
+        model.classifier = nn.Sequential(*list(model.classifier.children())) # End with linear(512*128) in original vgg)
+                                                                                 # ReLU in .classfier() will follow later
         # get the features for the whole dataset
         features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
 
         # cluster the features
         print('Cluster the features')
         end = time.time()
-        clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
-        # deepcluster.cluster(features_train, verbose=args.verbose)
+        clustering_loss = deepcluster.cluster(features_train, verbose=args.verbose)
         print('Cluster time: {0:.2f} s'.format(time.time() - end))
 
-        nan_location = np.isnan(pca_features)
-        inf_location = np.isinf(pca_features)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features, 'pca_NaN_%d.pth.tar' % epoch)
-            torch.save(features_train, 'feature_NaN_%d.pth.tar' % epoch)
-            continue
-
         # save patches per epochs
-        cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
-                        labels_train]
 
-        linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
-        if args.verbose:
-            print('###### Epoch [{0}] ###### \n'
-                  'Classify. accu.: {1:.3f} \n'
-                  'Pairwise classify. accu: {2} \n'
-                  .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
-
-        if (epoch % args.save_epoch == 0):
+        if ((epoch+1) % args.save_epoch == 0):
             end = time.time()
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
+            cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train, labels_train]
+            with open("./cp_epoch_%d.pickle" % epoch, "wb") as f:
                 pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features, f)
             print('Feature save time: {0:.2f} s'.format(time.time() - end))
 
         # assign pseudo-labels
@@ -503,6 +496,8 @@ def main(args):
         img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
         train_dataset = clustering.cluster_assign(deepcluster.images_lists,
                                                   img_label_pair_train)  # Reassigned pseudolabel
+        # ((img[imgidx], label[imgidx]), pseudolabel, imgidx)
+        # N = len(imgidx)
 
         # uniformly sample per target
         sampler_train = UnifLabelSampler(int(len(train_dataset)),
@@ -535,36 +530,34 @@ def main(args):
         # train network with clusters as pseudo-labels
         end = time.time()
         with torch.autograd.set_detect_anomaly(True):
-            # loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
-            loss = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
+            loss, tr_epoch_out = train(train_dataloader, model, criterion, optimizer, epoch, device=device, args=args)
         print('Train time: {0:.2f} s'.format(time.time() - end))
 
-        # if (epoch % args.save_epoch == 0):
-        #     end = time.time()
-        #     with open(os.path.join(args.exp, '..', 'tr_epoch_%d.pickle' % epoch), "wb") as f:
-        #         pickle.dump(tr_epoch_out, f)
-        #     print('Save train time: {0:.2f} s'.format(time.time() - end))
+
+        if ((epoch+1) % args.save_epoch == 0):
+            end = time.time()
+            with open("./tr_epoch_%d.pickle" % epoch, "wb") as f:
+                pickle.dump(tr_epoch_out, f)
+            print('Save train time: {0:.2f} s'.format(time.time() - end))
 
         # Accuracy with training set (output vs. pseudo label)
-        # accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
+        accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
 
         # print log
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
-                  'ConvNet tr_loss: {2:.3f} \n'
-                  'Clustering loss: {3:.3f} \n'
-                  .format(epoch, time.time() - end, loss, clustering_loss))
+                  'Clustering loss: {2:.3f} \n'
+                  'ConvNet tr_loss: {3:.3f} \n'
+                  'ConvNet tr_acc: {4:.3f} \n'
+                  .format(epoch, time.time() - end, clustering_loss, loss, accuracy_tr))
 
             try:
                 nmi = normalized_mutual_info_score(
                     clustering.arrange_clustering(deepcluster.images_lists),
                     clustering.arrange_clustering(cluster_log.data[-1])
                 )
-                nmi_save.append(nmi)
                 print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open("./nmi_collect.pickle", "wb") as ff:
-                    pickle.dump(nmi_save, ff)
             except IndexError:
                 pass
             print('####################### \n')
@@ -573,26 +566,12 @@ def main(args):
                     'arch': args.arch,
                     'state_dict': model.state_dict(),
                     'optimizer' : optimizer.state_dict()},
-                   os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
-
-        # evaluation: echogram reconstruction
-        if (epoch % args.save_epoch == 0):
-            eval_epoch_out = evaluate(eval_dataloader, model, device=device, args=args)
-            with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
-                pickle.dump(eval_epoch_out, f)
-
-        print('epoch: ', type(epoch), epoch)
-        print('loss: ', type(loss), loss)
-        print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
-        print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
-        print('clustering_loss: ', type(clustering_loss), clustering_loss)
+                   os.path.join(args.exp, 'checkpoint.pth.tar'))
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(loss)
-        loss_collect[2].append(linear_svc.whole_score)
-        loss_collect[3].append(linear_svc.pair_score)
-        loss_collect[4].append(clustering_loss)
-        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
+        loss_collect[2].append(accuracy_tr)
+        with open("./loss_collect.pickle", "wb") as f:
             pickle.dump(loss_collect, f)
 
         # save cluster assignments
