@@ -586,7 +586,37 @@ def main(args):
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
         model.category_layer = None
-        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
+
+        ############################
+        ############################
+        # PSEUDO-LABEL GEN: Test set
+        ############################
+        ############################
+
+        print('TEST set: Cluster the features')
+        features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_cp),
+                                                                    device=device, args=args)
+        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+
+        nan_location = np.isnan(pca_features_te)
+        inf_location = np.isinf(pca_features_te)
+        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ',
+                  np.sum(inf_location))
+            print('Skip epoch ', epoch)
+            torch.save(pca_features_te, 'te_pca_NaN_%d.pth.tar' % epoch)
+            torch.save(features_te, 'te_feature_NaN_%d.pth.tar' % epoch)
+            continue
+
+        # save patches per epochs
+        cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
+                        labels_te]
+
+        if (epoch % args.save_epoch == 0):
+            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump(cp_epoch_out, f)
+            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump(pca_features_te, f)
 
         ############################
         ############################
@@ -595,6 +625,7 @@ def main(args):
         ############################
 
         print('Cluster the features')
+        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
         clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
 
         nan_location = np.isnan(pca_features)
@@ -605,16 +636,6 @@ def main(args):
             torch.save(pca_features, 'pca_NaN_%d.pth.tar' % epoch)
             torch.save(features_train, 'feature_NaN_%d.pth.tar' % epoch)
             continue
-
-        # save patches per epochs
-        cp_epoch_out = [features_train, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_train,
-                        labels_train]
-
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features, f)
 
         print('Assign pseudo labels')
         size_cluster = np.zeros(len(deepcluster.images_lists))
