@@ -227,18 +227,6 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
     losses = AverageMeter()
     semi_losses = AverageMeter()
 
-    '''SELF-SUPERVISION (PSEUDO-LABELS)'''
-    model.category_layer = None
-    model.cluster_layer = nn.Sequential(
-        nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
-        nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
-    )
-    # load_state_dict ?
-    model.cluster_layer[0].weight.data.normal_(0, 0.01)
-    model.cluster_layer[0].bias.data.zero_()
-    model.cluster_layer = model.cluster_layer.double()
-    model.cluster_layer.to(device)
-
     # switch to train mode
     model.train()
     end = time.time()
@@ -266,7 +254,6 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
-
 
     '''SUPERVISION with a few labelled dataset'''
     model.cluster_layer = None
@@ -626,6 +613,19 @@ def main(args):
         mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
         mlp.append(nn.ReLU(inplace=True).to(device))
         model.classifier = nn.Sequential(*mlp)
+        model.classifier.to(device)
+
+        '''SELF-SUPERVISION (PSEUDO-LABELS)'''
+        model.category_layer = None
+        model.cluster_layer = nn.Sequential(
+            nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
+            nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
+        )
+        model.cluster_layer[0].weight.data.normal_(0, 0.01)
+        model.cluster_layer[0].bias.data.zero_()
+        model.cluster_layer = model.cluster_layer.double()
+        model.cluster_layer.to(device)
+
         ''' train network with clusters as pseudo-labels '''
         with torch.autograd.set_detect_anomaly(True):
             pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
@@ -702,6 +702,11 @@ def main(args):
         features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
                                                                     device=device, args=args)
         clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+
+        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+        mlp.append(nn.ReLU(inplace=True).to(device))
+        model.classifier = nn.Sequential(*mlp)
+        model.classifier.to(device)
 
         nan_location = np.isnan(pca_features_te)
         inf_location = np.isinf(pca_features_te)
