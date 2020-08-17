@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.01, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
@@ -309,7 +309,7 @@ def main(args):
     dataset_cp, dataset_semi = sampling_echograms_full(args)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=False,
+                                                shuffle=True,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,

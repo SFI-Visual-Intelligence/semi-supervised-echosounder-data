@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.01, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
@@ -227,12 +227,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
     losses = AverageMeter()
     semi_losses = AverageMeter()
 
-    ##################################
-    ##################################
-    # SELF-SUPERVISION (PSEUDO-LABELS)
-    ##################################
-    ##################################
-
+    '''SELF-SUPERVISION (PSEUDO-LABELS)'''
     model.category_layer = None
     model.cluster_layer = nn.Sequential(
         nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
@@ -272,12 +267,8 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
 
-    ##################################
-    ##################################
-    # SEMI-SUPERVISION
-    ##################################
-    ##################################
 
+    '''SUPERVISION with a few labelled dataset'''
     model.cluster_layer = None
     model.category_layer = nn.Sequential(
         nn.Linear(fd, args.nmb_category),
@@ -334,11 +325,7 @@ def sampling_echograms_full(args):
     samplers_train = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
-
-    samplers_semi = []
-    for samplers in samplers_train:
-        np.random.shuffle(samplers)
-        samplers_semi.append(samplers[:semi_count])
+    samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
 
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
@@ -383,12 +370,12 @@ def main(args):
     if args.verbose:
         print('Architecture: {}'.format(args.arch))
 
+    '''
     ##########################################
     ##########################################
     # Model definition
     ##########################################
-    ##########################################
-
+    ##########################################'''
     model = models.__dict__[args.arch](bn=True, num_cluster=args.nmb_cluster, num_category=args.nmb_category)
     fd = int(model.cluster_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
     model.cluster_layer = None
@@ -414,13 +401,13 @@ def main(args):
             momentum=args.momentum,
             weight_decay=10 ** args.wd,
         )
-
-    ##########################################
-    ##########################################
-    # category_layer
-    ##########################################
-    ##########################################
-
+    '''
+    ###############
+    ###############
+    category_layer
+    ###############
+    ###############
+    '''
     model.category_layer = nn.Sequential(
         nn.Linear(fd, args.nmb_category),
         nn.Softmax(dim=1),
@@ -446,24 +433,24 @@ def main(args):
             momentum=args.momentum,
             weight_decay=10 ** args.wd,
         )
-
+    '''
     ########################################
     ########################################
-    # Create echogram sampling index
+    Create echogram sampling index
     ########################################
-    ########################################
+    ########################################'''
 
     print('Sample echograms.')
     dataset_cp, dataset_semi = sampling_echograms_full(args)
     dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
-                                                shuffle=False,
+                                                shuffle=True,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
                                                 pin_memory=True)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=False,
+                                                shuffle=True,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
@@ -511,119 +498,89 @@ def main(args):
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
-    ############################
-    ############################
-    # PRETRAIN
-    ############################
-    ############################
-
-    if args.start_epoch < args.pretrain_epoch:
-        pretrain_loss_collect = [[], [], [], [], []]
-        print('Start pretraining with %d percent of the dataset from epoch %d/(%d)'
-              % (int(args.semi_ratio * 100), args.start_epoch, args.pretrain_epoch))
-        model.cluster_layer = None
-
-        for epoch in range(args.start_epoch, args.pretrain_epoch):
-            with torch.autograd.set_detect_anomaly(True):
-                pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
-                                                          model=model,
-                                                          crit=criterion,
-                                                          opt_body=optimizer_body,
-                                                          opt_category=optimizer_category,
-                                                          epoch=epoch, device=device, args=args)
-            test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
-
-            # print log
-            if args.verbose:
-                print('###### Epoch [{0}] ###### \n'
-                      'PRETRAIN tr_loss: {1:.3f} \n'
-                      'TEST loss: {2:.3f} \n'
-                      'PRETRAIN tr_accu: {3:.3f} \n'
-                      'TEST accu: {4:.3f} \n'.format(epoch, pre_loss, test_loss, pre_accuracy, test_accuracy))
-            pretrain_loss_collect[0].append(epoch)
-            pretrain_loss_collect[1].append(pre_loss)
-            pretrain_loss_collect[2].append(test_loss)
-            pretrain_loss_collect[3].append(pre_accuracy)
-            pretrain_loss_collect[4].append(test_accuracy)
-
-            torch.save({'epoch': epoch + 1,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'optimizer_body': optimizer_body.state_dict(),
-                        'optimizer_category': optimizer_category.state_dict(),
-                        },
-                       os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
-            torch.save(model.category_layer.state_dict(), os.path.join(args.exp,  '..', 'category_layer.pth.tar'))
-
-            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
-                pickle.dump(pretrain_loss_collect, f)
-
-            if (epoch+1) % args.checkpoints == 0:
-                path = os.path.join(
-                    args.exp, '..',
-                    'checkpoints',
-                    'checkpoint_' + str(epoch) + '.pth.tar',
-                )
-                if args.verbose:
-                    print('Save checkpoint at: {0}'.format(path))
-                torch.save({'epoch': epoch + 1,
-                            'arch': args.arch,
-                            'state_dict': model.state_dict(),
-                            'optimizer_body': optimizer_body.state_dict(),
-                            'optimizer_category': optimizer_category.state_dict(),
-                            }, path)
-
-    ############################
-    ############################
-    # SEMI-SUPERVISED
-    ############################
-    ############################
+    '''
+    #######################
+    #######################    
+    PRETRAIN: commented
+    #######################
+    #######################'''
+    # if args.start_epoch < args.pretrain_epoch:
+    #     pretrain_loss_collect = [[], [], [], [], []]
+    #     print('Start pretraining with %d percent of the dataset from epoch %d/(%d)'
+    #           % (int(args.semi_ratio * 100), args.start_epoch, args.pretrain_epoch))
+    #     model.cluster_layer = None
+    #
+    #     for epoch in range(args.start_epoch, args.pretrain_epoch):
+    #         with torch.autograd.set_detect_anomaly(True):
+    #             pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
+    #                                                       model=model,
+    #                                                       crit=criterion,
+    #                                                       opt_body=optimizer_body,
+    #                                                       opt_category=optimizer_category,
+    #                                                       epoch=epoch, device=device, args=args)
+    #         test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
+    #
+    #         # print log
+    #         if args.verbose:
+    #             print('###### Epoch [{0}] ###### \n'
+    #                   'PRETRAIN tr_loss: {1:.3f} \n'
+    #                   'TEST loss: {2:.3f} \n'
+    #                   'PRETRAIN tr_accu: {3:.3f} \n'
+    #                   'TEST accu: {4:.3f} \n'.format(epoch, pre_loss, test_loss, pre_accuracy, test_accuracy))
+    #         pretrain_loss_collect[0].append(epoch)
+    #         pretrain_loss_collect[1].append(pre_loss)
+    #         pretrain_loss_collect[2].append(test_loss)
+    #         pretrain_loss_collect[3].append(pre_accuracy)
+    #         pretrain_loss_collect[4].append(test_accuracy)
+    #
+    #         torch.save({'epoch': epoch + 1,
+    #                     'arch': args.arch,
+    #                     'state_dict': model.state_dict(),
+    #                     'optimizer_body': optimizer_body.state_dict(),
+    #                     'optimizer_category': optimizer_category.state_dict(),
+    #                     },
+    #                    os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
+    #         torch.save(model.category_layer.state_dict(), os.path.join(args.exp,  '..', 'category_layer.pth.tar'))
+    #
+    #         with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
+    #             pickle.dump(pretrain_loss_collect, f)
+    #
+    #         if (epoch+1) % args.checkpoints == 0:
+    #             path = os.path.join(
+    #                 args.exp, '..',
+    #                 'checkpoints',
+    #                 'checkpoint_' + str(epoch) + '.pth.tar',
+    #             )
+    #             if args.verbose:
+    #                 print('Save checkpoint at: {0}'.format(path))
+    #             torch.save({'epoch': epoch + 1,
+    #                         'arch': args.arch,
+    #                         'state_dict': model.state_dict(),
+    #                         'optimizer_body': optimizer_body.state_dict(),
+    #                         'optimizer_category': optimizer_category.state_dict(),
+    #                         }, path)
 
     nmi_save = []
     loss_collect = [[], [], [], [], [], [], []]
+    '''
+    #######################
+    #######################
+    MAIN TRAINING
+    #######################
+    #######################'''
     for epoch in range(args.start_epoch, args.epochs):
         end = time.time()
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
         model.category_layer = None
 
-        ############################
-        ############################
-        # PSEUDO-LABEL GEN: Test set
-        ############################
-        ############################
-
-        print('TEST set: Cluster the features')
-        features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
-                                                                    device=device, args=args)
-        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
-
-        nan_location = np.isnan(pca_features_te)
-        inf_location = np.isinf(pca_features_te)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ',
-                  np.sum(inf_location))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features_te, 'te_pca_NaN_%d.pth.tar' % epoch)
-            torch.save(features_te, 'te_feature_NaN_%d.pth.tar' % epoch)
-            continue
-
-        # save patches per epochs
-        cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
-                        labels_te]
-
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features_te, f)
-
-        ############################
-        ############################
-        # PSEUDO-LABEL GENERATION
-        ############################
-        ############################
-
+        '''
+        #######################
+        #######################
+        PSEUDO-LABEL GENERATION
+        #######################
+        #######################
+        '''
         print('Cluster the features')
         features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
         clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
@@ -653,31 +610,34 @@ def main(args):
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=args.batch,
-            shuffle=False,
+            shuffle=True,
             num_workers=args.workers,
             sampler=sampler_train,
             pin_memory=True,
         )
-
+        '''
         ####################################################################
         ####################################################################
-        # TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
+        TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
         ####################################################################
         ####################################################################
-
+        '''
         # Recover classifier with ReLU (that is not used in clustering)
         mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
         mlp.append(nn.ReLU(inplace=True).to(device))
         model.classifier = nn.Sequential(*mlp)
-
-        ####################################################################
-        ####################################################################
-        # train network with clusters as pseudo-labels
-        ####################################################################
-        ####################################################################
+        ''' train network with clusters as pseudo-labels '''
         with torch.autograd.set_detect_anomaly(True):
             pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
                                                                optimizer_body, optimizer_category, epoch, device=device, args=args)
+
+        '''
+        ##############
+        ##############
+        # TEST phase
+        ##############
+        ##############
+        '''
         test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
 
         if args.verbose:
@@ -703,6 +663,10 @@ def main(args):
             except IndexError:
                 pass
             print('####################### \n')
+
+        # save cluster assignments
+        cluster_log.log(deepcluster.images_lists)
+
         # save running checkpoint
         torch.save({'epoch': epoch + 1,
                     'arch': args.arch,
@@ -723,12 +687,45 @@ def main(args):
         with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
-        # save cluster assignments
-        cluster_log.log(deepcluster.images_lists)
+        '''
+        ############################
+        ############################
+        # PSEUDO-LABEL GEN: Test set
+        ############################
+        ############################
+        '''
+        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+        model.cluster_layer = None
+        model.category_layer = None
+
+        print('TEST set: Cluster the features')
+        features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
+                                                                    device=device, args=args)
+        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+
+        nan_location = np.isnan(pca_features_te)
+        inf_location = np.isinf(pca_features_te)
+        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ',
+                  np.sum(inf_location))
+            print('Skip epoch ', epoch)
+            torch.save(pca_features_te, 'te_pca_NaN_%d.pth.tar' % epoch)
+            torch.save(features_te, 'te_feature_NaN_%d.pth.tar' % epoch)
+            continue
+
+        # save patches per epochs
+        cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
+                        labels_te]
+
+        if (epoch % args.save_epoch == 0):
+            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump(cp_epoch_out, f)
+            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump(pca_features_te, f)
+
 
         # save checkpoint
-
-        if (epoch+1) % args.checkpoints == 0:
+        if (epoch + 1) % args.checkpoints == 0:
             path = os.path.join(
                 args.exp, '..',
                 'checkpoints',
@@ -744,12 +741,9 @@ def main(args):
                         }, path)
 
 
-
-
 if __name__ == '__main__':
     args = parse_args()
     main(args)
-
 
 '''
         # input_tensors = []
