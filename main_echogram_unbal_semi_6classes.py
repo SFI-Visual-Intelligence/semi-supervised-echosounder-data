@@ -614,8 +614,6 @@ def main(args):
     #######################
     #######################'''
     for epoch in range(args.start_epoch, args.epochs):
-
-
         end = time.time()
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
