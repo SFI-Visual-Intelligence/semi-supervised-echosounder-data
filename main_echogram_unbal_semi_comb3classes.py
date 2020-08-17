@@ -491,14 +491,14 @@ def main(args):
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
-                                                pin_memory=True)
+                                                pin_memory=False)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
                                                 shuffle=True,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
-                                                pin_memory=True)
+                                                pin_memory=False)
 
     dataset_test = sampling_echograms_test(args)
     dataloader_test = torch.utils.data.DataLoader(dataset_test,
@@ -657,7 +657,7 @@ def main(args):
             shuffle=True,
             num_workers=args.workers,
             sampler=sampler_train,
-            pin_memory=True,
+            pin_memory=False,
         )
         '''
         ####################################################################

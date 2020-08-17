@@ -313,7 +313,7 @@ def main(args):
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
-                                                pin_memory=True)
+                                                pin_memory=False)
 
     dataset_test = sampling_echograms_test(args)
     dataloader_test = torch.utils.data.DataLoader(dataset_test,
