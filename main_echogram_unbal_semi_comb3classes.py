@@ -487,18 +487,18 @@ def main(args):
     print('Sample echograms.')
     dataset_cp, dataset_semi = sampling_echograms_full(args)
     dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
-                                                shuffle=True,
+                                                shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
-                                                pin_memory=False)
+                                                pin_memory=True)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=True,
+                                                shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
                                                 drop_last=False,
-                                                pin_memory=False)
+                                                pin_memory=True)
 
     dataset_test = sampling_echograms_test(args)
     dataloader_test = torch.utils.data.DataLoader(dataset_test,
@@ -654,10 +654,10 @@ def main(args):
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=args.batch,
-            shuffle=True,
+            shuffle=False,
             num_workers=args.workers,
             sampler=sampler_train,
-            pin_memory=False,
+            pin_memory=True,
         )
         '''
         ####################################################################
@@ -789,160 +789,3 @@ if __name__ == '__main__':
     args = parse_args()
     main(args)
 
-
-'''
-        # input_tensors = []
-        # labels = []
-        # pseudo_targets = []
-        # outputs = []
-        # imgidxes = []
-
-        # input_tensors.append(input_tensor.data.cpu().numpy())
-        # pseudo_targets.append(pseudo_target.data.cpu().numpy())
-        # outputs.append(output.data.cpu().numpy())
-        # labels.append(label)
-        # imgidxes.append(imgidx)
-
-        # input_tensors = []
-        # labels = []
-        # pseudo_targets = []
-        # outputs = []
-        # imgidxes = []
-
-
-
-        # loss_collect[2].append(linear_svc.whole_score)
-        # loss_collect[3].append(linear_svc.pair_score)
-
-        # evaluation: echogram reconstruction
-        # if (epoch % args.save_epoch == 0):
-        #     eval_epoch_out = evaluate(eval_dataloader, model, device=device, args=args)
-        #     with open(os.path.join(args.exp, '..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
-        #         pickle.dump(eval_epoch_out, f)
-
-        # print('epoch: ', type(epoch), epoch)
-        # print('loss: ', type(loss), loss)
-        # print('Test loss: ', type(test_loss), test_loss)
-        # print('linear_svc.whole_score: ', type(linear_svc.whole_score), linear_svc.whole_score)
-        # print('linear_svc.pair_score: ', type(linear_svc.pair_score), linear_svc.pair_score)
-        # print('clustering_loss: ', type(clustering_loss), clustering_loss)
-
-
-# def sampling_echograms_eval(args):
-#     # echograms_eval = get_echograms(years=[2019], frequencies=[18, 38, 120, 200],
-#     #                                minimum_shape=int(args.window_dim * 5), maximum_shape=int(args.window_dim * 100))
-#     # stride_eval = [args.stride, args.stride]
-#     # gap_eval = GetAllPatches(echograms_eval, window_size, stride_eval, fish_type=[1, 27], random_offset_ratio=1024, phase='eval')
-#     # echograms_eval = gap_eval.target_echograms
-#     window_size = [args.window_dim, args.window_dim]
-#     path_to_eval = paths.path_to_eval()
-#     eval_dir_names = ['2019847-D20190512-T140210', '2019847-D20190512-T161218', '2019847-D20190512-T143430', '2019847-D20190512-T153731']
-#     echograms_eval = [Echogram(os.path.join(path_to_eval, e)) for e in eval_dir_names]
-#     sampler_eval = SampleFull(echograms_eval, window_size, args.stride)
-#     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
-#     dataset_eval = DatasetGrid(
-#         sampler_eval,
-#         window_size,
-#         args.frequencies,
-#         data_transform_function=data_transform)
-#     return dataset_eval
-
-# def evaluate(loader, model, device, args):
-#     print("####################### Start evaluate #######################")
-#     fd = int(model.top_layer[0].weight.size()[1])
-#     torch.save(model.top_layer.state_dict(), './top_layer_eval.pt')
-#     N = loader.dataset.__len__()
-#     input_tensors = []
-#
-#     features = []
-#     outputs = []
-#
-#     with torch.no_grad():
-#         for i, (input_tensor, _) in enumerate(loader):
-#             input_tensor.double()
-#             input_var = torch.autograd.Variable(input_tensor.to(device))
-#
-#             # get vectorial expression
-#             model.top_layer = None
-#             aux = model(input_var)
-#
-#             # recall top layer
-#             model.top_layer = nn.Sequential(
-#                 nn.Linear(fd, args.nmb_cluster),
-#                 nn.Softmax(dim=1),
-#             )
-#             model.top_layer.load_state_dict(torch.load('./top_layer_eval.pt'))
-#             model.top_layer = model.top_layer.double()
-#             model.top_layer.to(device)
-#
-#             out = model.top_layer_forward(aux)
-#
-#             input_tensors.extend(input_tensor.data.cpu().numpy())
-#             features.extend(aux.data.cpu().numpy())
-#             outputs.extend(out.data.cpu().numpy())
-#
-#             # if i == 0:
-#             #     features = np.zeros((N, aux.shape[1]), dtype='float32')
-#             #     outputs = np.zeros((N, out.shape[1]), dtype='float32')
-#             # aux = aux.astype('float32')
-#             # out = out.astype('float32')
-#             # if i < len(loader) - 1:
-#             #     features[i * args.batch: (i + 1) * args.batch] = aux
-#             #     outputs[i * args.batch: (i + 1) * args.batch] = out
-#             # else:
-#             #     features[i * args.batch:] = aux
-#             #     outputs[i * args.batch:] = out
-#
-#     echograms = loader.dataset.sampler_test.echograms
-#     center_locations = loader.dataset.sampler_test.center_locations
-#     eval_epoch_out = [features, outputs, input_tensors, echograms, center_locations]
-#     print("####################### End evaluate #######################")
-#     return eval_epoch_out
-
-        # linear_svc = SimpleClassifier(epoch, cp_epoch_out, tr_size=5, iteration=20)
-        # if args.verbose:
-        #     print('###### Epoch [{0}] ###### \n'
-        #           'Classify. accu.: {1:.3f} \n'
-        #           'Pairwise classify. accu: {2} \n'
-        #           .format(epoch, linear_svc.whole_score, linear_svc.pair_score))
-
-    # for evaluation
-    # dataset_eval = sampling_echograms_eval(args)
-    # eval_dataloader = torch.utils.data.DataLoader(dataset_eval,
-    #                                               batch_size=args.batch,
-    #                                               shuffle=False,
-    #                                               num_workers=args.workers,
-    #                                               pin_memory=True,
-    #                                               )
-
-        # if (epoch % args.save_epoch == 0):
-        #     end = time.time()
-        #     with open(os.path.join(args.exp, '..', 'tr_epoch_%d.pickle' % epoch), "wb") as f:
-        #         pickle.dump(tr_epoch_out, f)
-        #     print('Save train time: {0:.2f} s'.format(time.time() - end))
-
-        # Accuracy with training set (output vs. pseudo label)
-        # accuracy_tr = np.mean(tr_epoch_out[1] == np.argmax(tr_epoch_out[2], axis=1))
-
-# def accuracy_test(dataloader, model, device, args):
-#     if args.verbose:
-#         print('Accuracy')
-#     model.eval()
-#     output_save = []
-#     label_save = []
-#     with torch.no_grad():
-#         for i, (input_tensor, label) in enumerate(dataloader):
-#             input_tensor.double()
-#             input_var = torch.autograd.Variable(input_tensor.to(device))
-#             output = model(input_var)
-#             output = torch.argmax(output, axis=1)
-#             output_save.append(output.data.cpu().numpy())
-#             label_save.append(label.data.cpu().numpy())
-# 
-#     output_flat = flatten_list(output_save)
-#     label_flat = flatten_list(label_save)
-#     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
-#     accuracy = sum(accu_list)/len(accu_list)
-#     return accuracy, output_save, label_save
-
-'''
