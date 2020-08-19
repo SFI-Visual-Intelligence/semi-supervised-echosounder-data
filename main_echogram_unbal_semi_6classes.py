@@ -676,6 +676,23 @@ def main(args):
             pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
                                                                optimizer_body, optimizer_category, epoch, device=device, args=args)
 
+        # save checkpoint
+        if (epoch + 1) % args.checkpoints == 0:
+            path = os.path.join(
+                args.exp, '..',
+                'checkpoints',
+                'checkpoint_' + str(epoch) + '.pth.tar',
+            )
+            if args.verbose:
+                print('Save checkpoint at: {0}'.format(path))
+            torch.save({'epoch': epoch + 1,
+                        'arch': args.arch,
+                        'state_dict': model.state_dict(),
+                        'optimizer_body': optimizer_body.state_dict(),
+                        'optimizer_category': optimizer_category.state_dict(),
+                        }, path)
+
+
         '''
         ##############
         ##############
@@ -773,22 +790,6 @@ def main(args):
             with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump(pca_features_te, f)
 
-
-        # save checkpoint
-        if (epoch + 1) % args.checkpoints == 0:
-            path = os.path.join(
-                args.exp, '..',
-                'checkpoints',
-                'checkpoint_' + str(epoch) + '.pth.tar',
-            )
-            if args.verbose:
-                print('Save checkpoint at: {0}'.format(path))
-            torch.save({'epoch': epoch + 1,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'optimizer_body': optimizer_body.state_dict(),
-                        'optimizer_category': optimizer_category.state_dict(),
-                        }, path)
 
 
 if __name__ == '__main__':
