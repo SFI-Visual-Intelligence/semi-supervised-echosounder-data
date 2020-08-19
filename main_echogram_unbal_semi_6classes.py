@@ -104,7 +104,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.05, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
