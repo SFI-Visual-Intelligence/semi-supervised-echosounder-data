@@ -361,7 +361,11 @@ def main(args):
     ############################
 
     if args.start_epoch < args.pretrain_epoch:
-        pretrain_loss_collect = [[], [], [], [], []]
+        if os.path.isfile(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle')):
+            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "rb") as f:
+                pretrain_loss_collect = pickle.load(f)
+        else:
+            pretrain_loss_collect = [[], [], [], [], []]
         print('Start pretraining with %d percent of the dataset from epoch %d/(%d)'
               % (int(args.semi_ratio * 100), args.start_epoch, args.pretrain_epoch))
         model.cluster_layer = None
