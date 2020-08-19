@@ -732,7 +732,7 @@ def main(args):
                 )
                 nmi_save.append(nmi)
                 print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open("./nmi_collect.pickle", "wb") as ff:
+                with open(os.path.join(args.exp, '..', 'nmi_collect.pickle'), "wb") as ff:
                     pickle.dump(nmi_save, ff)
             except IndexError:
                 pass
