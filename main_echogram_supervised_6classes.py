@@ -183,7 +183,7 @@ def test(dataloader, model, crit, device, args):
     label_flat = flatten_list(test_label_save)
     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
     test_accuracy = sum(accu_list) / len(accu_list)
-    return test_losses.avg, test_accuracy
+    return test_losses.avg, test_accuracy, output_flat, label_flat
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
@@ -378,7 +378,13 @@ def main(args):
                                                           opt_body=optimizer_body,
                                                           opt_category=optimizer_category,
                                                           epoch=epoch, device=device, args=args)
-            test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
+
+            test_loss, test_accuracy, test_pred, test_label = test(dataloader_test, model, criterion, device, args)
+
+            '''Save prediction of the test set'''
+            if (epoch % args.save_epoch == 0):
+                with open(os.path.join(args.exp, '..', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
+                    pickle.dump([test_pred, test_label], f)
 
             # print log
             if args.verbose:

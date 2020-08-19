@@ -93,7 +93,7 @@ def parse_args():
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
-                        default=os.path.join(current_dir, '..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
+                        default=os.path.join(current_dir, '../..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
@@ -229,7 +229,7 @@ def main(args):
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
     criterion = nn.CrossEntropyLoss()
-    cluster_log = Logger(os.path.join(args.exp,  '..', 'clusters.pickle'))
+    cluster_log = Logger(os.path.join(args.exp, '../..', 'clusters.pickle'))
 
     # CNN
     if args.verbose:
@@ -340,7 +340,7 @@ def main(args):
             model.load_state_dict(checkpoint['state_dict'])
             optimizer_body.load_state_dict(checkpoint['optimizer_body'])
             optimizer_category.load_state_dict(checkpoint['optimizer_category'])
-            category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+            category_save = os.path.join(args.exp, '../..', 'category_layer.pth.tar')
             if os.path.isfile(category_save):
                 category_layer_param = torch.load(category_save)
                 model.category_layer.load_state_dict(category_layer_param)
@@ -350,7 +350,7 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, '..', 'checkpoints')
+    exp_check = os.path.join(args.exp, '../..', 'checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
@@ -361,8 +361,8 @@ def main(args):
     ############################
 
     if args.start_epoch < args.pretrain_epoch:
-        if os.path.isfile(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle')):
-            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "rb") as f:
+        if os.path.isfile(os.path.join(args.exp, '../..', 'pretrain_loss_collect.pickle')):
+            with open(os.path.join(args.exp, '../..', 'pretrain_loss_collect.pickle'), "rb") as f:
                 pretrain_loss_collect = pickle.load(f)
         else:
             pretrain_loss_collect = [[], [], [], [], []]
@@ -400,15 +400,15 @@ def main(args):
                         'optimizer_body': optimizer_body.state_dict(),
                         'optimizer_category': optimizer_category.state_dict(),
                         },
-                       os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
-            torch.save(model.category_layer.state_dict(), os.path.join(args.exp,  '..', 'category_layer.pth.tar'))
+                       os.path.join(args.exp, '../..', 'checkpoint.pth.tar'))
+            torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '../..', 'category_layer.pth.tar'))
 
-            with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
+            with open(os.path.join(args.exp, '../..', 'pretrain_loss_collect.pickle'), "wb") as f:
                 pickle.dump(pretrain_loss_collect, f)
 
             if (epoch+1) % args.checkpoints == 0:
                 path = os.path.join(
-                    args.exp, '..',
+                    args.exp, '../..',
                     'checkpoints',
                     'checkpoint_' + str(epoch) + '.pth.tar',
                 )
