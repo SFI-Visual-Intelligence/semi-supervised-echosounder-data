@@ -74,13 +74,13 @@ def parse_args():
                         help='number of pretrain epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=50, type=int,
+    parser.add_argument('--save_epoch', default=1, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=10,
+    parser.add_argument('--checkpoints', type=int, default=1,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
@@ -571,151 +571,151 @@ def main(args):
     #######################'''
     for epoch in range(args.start_epoch, args.epochs):
         end = time.time()
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-        model.cluster_layer = None
-        model.category_layer = None
-
-        '''
-        #######################
-        #######################
-        PSEUDO-LABEL GENERATION
-        #######################
-        #######################
-        '''
-        print('Cluster the features')
-        features_train, input_tensors_train, labels_train = compute_features(dataloader_semi, model, len(dataset_semi), device=device, args=args)
-        clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
-
-        nan_location = np.isnan(pca_features)
-        inf_location = np.isinf(pca_features)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features, 'tr_pca_NaN_%d.pth.tar' % epoch)
-            torch.save(features_train, 'tr_feature_NaN_%d.pth.tar' % epoch)
-            continue
-
-        print('Assign pseudo labels')
-        size_cluster = np.zeros(len(deepcluster.images_lists))
-        for i,  _list in enumerate(deepcluster.images_lists):
-            size_cluster[i] = len(_list)
-        print('size in clusters: ', size_cluster)
-        img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
-        train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-                                                  img_label_pair_train)  # Reassigned pseudolabel
-
-        # uniformly sample per target
-        sampler_train = UnifLabelSampler(int(len(train_dataset)),
-                                   deepcluster.images_lists)
-
-        train_dataloader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=args.batch,
-            shuffle=False,
-            num_workers=args.workers,
-            sampler=sampler_train,
-            pin_memory=True,
-        )
-        '''
-        ####################################################################
-        ####################################################################
-        TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
-        ####################################################################
-        ####################################################################
-        '''
-        # Recover classifier with ReLU (that is not used in clustering)
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-        mlp.append(nn.ReLU(inplace=True).to(device))
-        model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device)
-
-        '''SELF-SUPERVISION (PSEUDO-LABELS)'''
-        model.category_layer = None
-        model.cluster_layer = nn.Sequential(
-            nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
-            nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
-        )
-        model.cluster_layer[0].weight.data.normal_(0, 0.01)
-        model.cluster_layer[0].bias.data.zero_()
-        model.cluster_layer = model.cluster_layer.double()
-        model.cluster_layer.to(device)
-
-        ''' train network with clusters as pseudo-labels '''
-        with torch.autograd.set_detect_anomaly(True):
-            pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
-                                                               optimizer_body, optimizer_category, epoch, device=device, args=args)
-
-        # save checkpoint
-        if (epoch + 1) % args.checkpoints == 0:
-            path = os.path.join(
-                args.exp, '..',
-                'checkpoints',
-                'checkpoint_' + str(epoch) + '.pth.tar',
-            )
-            if args.verbose:
-                print('Save checkpoint at: {0}'.format(path))
-            torch.save({'epoch': epoch + 1,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'optimizer_body': optimizer_body.state_dict(),
-                        'optimizer_category': optimizer_category.state_dict(),
-                        }, path)
-
-        '''
-        ##############
-        ##############
-        # TEST phase
-        ##############
-        ##############
-        '''
-        test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
-
-        if args.verbose:
-            print('###### Epoch [{0}] ###### \n'
-                  'Time: {1:.3f} s\n'
-                  'Pseudo tr_loss: {2:.3f} \n'
-                  'SEMI tr_loss: {3:.3f} \n'
-                  'TEST loss: {4:.3f} \n'
-                  'Clustering loss: {5:.3f} \n'
-                  'SEMI accu: {6:.3f} \n'
-                  'TEST accu: {7:.3f} \n'
-                  .format(epoch, time.time() - end, pseudo_loss, semi_loss,
-                          test_loss, clustering_loss, semi_accuracy, test_accuracy))
-            try:
-                nmi = normalized_mutual_info_score(
-                    clustering.arrange_clustering(deepcluster.images_lists),
-                    clustering.arrange_clustering(cluster_log.data[-1])
-                )
-                nmi_save.append(nmi)
-                print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open(os.path.join(args.exp, '..', 'nmi_collect.pickle'), "wb") as ff:
-                    pickle.dump(nmi_save, ff)
-            except IndexError:
-                pass
-            print('####################### \n')
-
-        # save cluster assignments
-        cluster_log.log(deepcluster.images_lists)
-
-        # save running checkpoint
-        torch.save({'epoch': epoch + 1,
-                    'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    'optimizer_body': optimizer_body.state_dict(),
-                    'optimizer_category': optimizer_category.state_dict(),
-                    },
-                   os.path.join(args.exp, '..', 'checkpoint.pth.tar'))
-        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '..', 'category_layer.pth.tar'))
-
-        loss_collect[0].append(epoch)
-        loss_collect[1].append(pseudo_loss)
-        loss_collect[2].append(semi_loss)
-        loss_collect[3].append(clustering_loss)
-        loss_collect[4].append(test_loss)
-        loss_collect[5].append(semi_accuracy)
-        loss_collect[6].append(test_accuracy)
-        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
-            pickle.dump(loss_collect, f)
+        # model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+        # model.cluster_layer = None
+        # model.category_layer = None
+        #
+        # '''
+        # #######################
+        # #######################
+        # PSEUDO-LABEL GENERATION
+        # #######################
+        # #######################
+        # '''
+        # print('Cluster the features')
+        # features_train, input_tensors_train, labels_train = compute_features(dataloader_semi, model, len(dataset_semi), device=device, args=args)
+        # clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
+        #
+        # nan_location = np.isnan(pca_features)
+        # inf_location = np.isinf(pca_features)
+        # if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+        #     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+        #     print('Skip epoch ', epoch)
+        #     torch.save(pca_features, 'tr_pca_NaN_%d.pth.tar' % epoch)
+        #     torch.save(features_train, 'tr_feature_NaN_%d.pth.tar' % epoch)
+        #     continue
+        #
+        # print('Assign pseudo labels')
+        # size_cluster = np.zeros(len(deepcluster.images_lists))
+        # for i,  _list in enumerate(deepcluster.images_lists):
+        #     size_cluster[i] = len(_list)
+        # print('size in clusters: ', size_cluster)
+        # img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
+        # train_dataset = clustering.cluster_assign(deepcluster.images_lists,
+        #                                           img_label_pair_train)  # Reassigned pseudolabel
+        #
+        # # uniformly sample per target
+        # sampler_train = UnifLabelSampler(int(len(train_dataset)),
+        #                            deepcluster.images_lists)
+        #
+        # train_dataloader = torch.utils.data.DataLoader(
+        #     train_dataset,
+        #     batch_size=args.batch,
+        #     shuffle=False,
+        #     num_workers=args.workers,
+        #     sampler=sampler_train,
+        #     pin_memory=True,
+        # )
+        # '''
+        # ####################################################################
+        # ####################################################################
+        # TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
+        # ####################################################################
+        # ####################################################################
+        # '''
+        # # Recover classifier with ReLU (that is not used in clustering)
+        # mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+        # mlp.append(nn.ReLU(inplace=True).to(device))
+        # model.classifier = nn.Sequential(*mlp)
+        # model.classifier.to(device)
+        #
+        # '''SELF-SUPERVISION (PSEUDO-LABELS)'''
+        # model.category_layer = None
+        # model.cluster_layer = nn.Sequential(
+        #     nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
+        #     nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
+        # )
+        # model.cluster_layer[0].weight.data.normal_(0, 0.01)
+        # model.cluster_layer[0].bias.data.zero_()
+        # model.cluster_layer = model.cluster_layer.double()
+        # model.cluster_layer.to(device)
+        #
+        # ''' train network with clusters as pseudo-labels '''
+        # with torch.autograd.set_detect_anomaly(True):
+        #     pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
+        #                                                        optimizer_body, optimizer_category, epoch, device=device, args=args)
+        #
+        # # save checkpoint
+        # if (epoch + 1) % args.checkpoints == 0:
+        #     path = os.path.join(
+        #         args.exp, '..',
+        #         'checkpoints',
+        #         'checkpoint_' + str(epoch) + '.pth.tar',
+        #     )
+        #     if args.verbose:
+        #         print('Save checkpoint at: {0}'.format(path))
+        #     torch.save({'epoch': epoch + 1,
+        #                 'arch': args.arch,
+        #                 'state_dict': model.state_dict(),
+        #                 'optimizer_body': optimizer_body.state_dict(),
+        #                 'optimizer_category': optimizer_category.state_dict(),
+        #                 }, path)
+        #
+        # '''
+        # ##############
+        # ##############
+        # # TEST phase
+        # ##############
+        # ##############
+        # '''
+        # test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
+        #
+        # if args.verbose:
+        #     print('###### Epoch [{0}] ###### \n'
+        #           'Time: {1:.3f} s\n'
+        #           'Pseudo tr_loss: {2:.3f} \n'
+        #           'SEMI tr_loss: {3:.3f} \n'
+        #           'TEST loss: {4:.3f} \n'
+        #           'Clustering loss: {5:.3f} \n'
+        #           'SEMI accu: {6:.3f} \n'
+        #           'TEST accu: {7:.3f} \n'
+        #           .format(epoch, time.time() - end, pseudo_loss, semi_loss,
+        #                   test_loss, clustering_loss, semi_accuracy, test_accuracy))
+        #     try:
+        #         nmi = normalized_mutual_info_score(
+        #             clustering.arrange_clustering(deepcluster.images_lists),
+        #             clustering.arrange_clustering(cluster_log.data[-1])
+        #         )
+        #         nmi_save.append(nmi)
+        #         print('NMI against previous assignment: {0:.3f}'.format(nmi))
+        #         with open(os.path.join(args.exp, '..', 'nmi_collect.pickle'), "wb") as ff:
+        #             pickle.dump(nmi_save, ff)
+        #     except IndexError:
+        #         pass
+        #     print('####################### \n')
+        #
+        # # save cluster assignments
+        # cluster_log.log(deepcluster.images_lists)
+        #
+        # # save running checkpoint
+        # torch.save({'epoch': epoch + 1,
+        #             'arch': args.arch,
+        #             'state_dict': model.state_dict(),
+        #             'optimizer_body': optimizer_body.state_dict(),
+        #             'optimizer_category': optimizer_category.state_dict(),
+        #             },
+        #            os.path.join(args.exp, '..', 'checkpoint.pth.tar'))
+        # torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '..', 'category_layer.pth.tar'))
+        #
+        # loss_collect[0].append(epoch)
+        # loss_collect[1].append(pseudo_loss)
+        # loss_collect[2].append(semi_loss)
+        # loss_collect[3].append(clustering_loss)
+        # loss_collect[4].append(test_loss)
+        # loss_collect[5].append(semi_accuracy)
+        # loss_collect[6].append(test_accuracy)
+        # with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
+        #     pickle.dump(loss_collect, f)
 
         '''
         ############################
