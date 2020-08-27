@@ -70,7 +70,7 @@ def parse_args():
                         help='number of data loading workers (default: 4)')
     parser.add_argument('--epochs', type=int, default=5000,
                         help='number of total epochs to run (default: 200)')
-    parser.add_argument('--pretrain_epoch', type=int, default=1000,
+    parser.add_argument('--pretrain_epoch', type=int, default=5000,
                         help='number of pretrain epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.01, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
