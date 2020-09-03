@@ -74,13 +74,13 @@ def parse_args():
                         help='number of pretrain epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=50, type=int,
+    parser.add_argument('--save_epoch', default=1, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=10,
+    parser.add_argument('--checkpoints', type=int, default=1,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.01, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
