@@ -68,7 +68,7 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=5000,
+    parser.add_argument('--epochs', type=int, default=92,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--pretrain_epoch', type=int, default=0,
                         help='number of pretrain epochs to run (default: 200)')
@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=1, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
