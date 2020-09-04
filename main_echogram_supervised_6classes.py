@@ -412,6 +412,10 @@ def main(args):
         model.cluster_layer = None
 
         for epoch in range(args.start_epoch, args.pretrain_epoch):
+            category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+            if os.path.isfile(category_save):
+                category_layer_param = torch.load(category_save)
+                model.category_layer.load_state_dict(category_layer_param)
             with torch.autograd.set_detect_anomaly(True):
                 pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
                                                           model=model,
