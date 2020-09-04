@@ -488,9 +488,13 @@ def main(args):
             model.classifier.to(device)
 
             category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+            category_layer_param = torch.load(category_save)
+            print('SAVED category_layer', category_layer_param.state_dict().keys())
+            print('Model category_layer', model.category_layer.state_dict().keys())
+
             if os.path.isfile(category_save):
-                category_layer_param = torch.load(category_save)
                 model.category_layer.load_state_dict(category_layer_param)
+
 
             # save patches per epochs
             cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
