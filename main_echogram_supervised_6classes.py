@@ -221,6 +221,44 @@ def sampling_echograms_test(args):
         data_transform_function=data_transform)
     return dataset_test
 
+def compute_features(dataloader, model, N, device, args):
+    if args.verbose:
+        print('Compute features')
+    batch_time = AverageMeter()
+    model.eval()
+    # discard the label information in the dataloader
+    input_tensors = []
+    labels = []
+    with torch.no_grad():
+         for i, (input_tensor, label) in enumerate(dataloader):
+            end = time.time()
+            input_tensor.double()
+            input_var = torch.autograd.Variable(input_tensor.to(device))
+            aux = model(input_var).data.cpu().numpy()
+
+            if i == 0:
+                features = np.zeros((N, aux.shape[1]), dtype='float32')
+
+            aux = aux.astype('float32')
+            if i < len(dataloader) - 1:
+                features[i * args.batch: (i + 1) * args.batch] = aux
+            else:
+                # special treatment for final batch
+                features[i * args.batch:] = aux
+            input_tensors.append(input_tensor.data.cpu().numpy())
+            labels.append(label.data.cpu().numpy())
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            if args.verbose and (i % 10) == 0:
+                print('{0} / {1}\t'
+                      'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
+                      .format(i, len(dataloader), batch_time=batch_time))
+         input_tensors = np.concatenate(input_tensors, axis=0)
+         labels = np.concatenate(labels, axis=0)
+         return features, input_tensors, labels
+
+
 def main(args):
     # fix random seeds
     torch.manual_seed(args.seed)
@@ -354,6 +392,9 @@ def main(args):
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
+    # clustering algorithm to use
+    deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
+
     ############################
     ############################
     # PRETRAIN
@@ -425,6 +466,38 @@ def main(args):
                             'optimizer_body': optimizer_body.state_dict(),
                             'optimizer_category': optimizer_category.state_dict(),
                             }, path)
+
+        '''
+        ############################
+        ############################
+        # PSEUDO-LABEL GEN: Test set
+        ############################
+        ############################
+        '''
+        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+        model.cluster_layer = None
+        model.category_layer = None
+
+        print('TEST set: Cluster the features')
+        features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
+                                                                    device=device, args=args)
+        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+
+        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+        mlp.append(nn.ReLU(inplace=True).to(device))
+        model.classifier = nn.Sequential(*mlp)
+        model.classifier.to(device)
+
+        # save patches per epochs
+        cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
+                        labels_te]
+
+        if (epoch % args.save_epoch == 0):
+            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump(cp_epoch_out, f)
+            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump(pca_features_te, f)
+
 
 
 if __name__ == '__main__':
