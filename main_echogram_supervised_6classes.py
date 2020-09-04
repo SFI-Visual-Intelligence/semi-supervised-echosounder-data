@@ -467,36 +467,36 @@ def main(args):
                             'optimizer_category': optimizer_category.state_dict(),
                             }, path)
 
-        '''
-        ############################
-        ############################
-        # PSEUDO-LABEL GEN: Test set
-        ############################
-        ############################
-        '''
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-        model.cluster_layer = None
-        model.category_layer = None
+            '''
+            ############################
+            ############################
+            # PSEUDO-LABEL GEN: Test set
+            ############################
+            ############################
+            '''
+            model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+            model.cluster_layer = None
+            model.category_layer = None
 
-        print('TEST set: Cluster the features')
-        features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
-                                                                    device=device, args=args)
-        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+            print('TEST set: Cluster the features')
+            features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
+                                                                        device=device, args=args)
+            clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
 
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-        mlp.append(nn.ReLU(inplace=True).to(device))
-        model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device)
+            mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+            mlp.append(nn.ReLU(inplace=True).to(device))
+            model.classifier = nn.Sequential(*mlp)
+            model.classifier.to(device)
 
-        # save patches per epochs
-        cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
-                        labels_te]
+            # save patches per epochs
+            cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
+                            labels_te]
 
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features_te, f)
+            if (epoch % args.save_epoch == 0):
+                with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+                    pickle.dump(cp_epoch_out, f)
+                with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+                    pickle.dump(pca_features_te, f)
 
 
 
