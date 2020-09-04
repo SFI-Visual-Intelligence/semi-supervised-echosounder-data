@@ -372,16 +372,10 @@ def main(args):
             for key in list(copy_checkpoint_state_dict):
                 if 'cluster_layer' in key:
                     del copy_checkpoint_state_dict[key]
-                # if 'category_layer' in key:
-                #     del copy_checkpoint_state_dict[key]
             checkpoint['state_dict'] = copy_checkpoint_state_dict
             model.load_state_dict(checkpoint['state_dict'])
             optimizer_body.load_state_dict(checkpoint['optimizer_body'])
             optimizer_category.load_state_dict(checkpoint['optimizer_category'])
-            category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
-            if os.path.isfile(category_save):
-                category_layer_param = torch.load(category_save)
-                model.category_layer.load_state_dict(category_layer_param)
             print("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
@@ -412,10 +406,10 @@ def main(args):
         model.cluster_layer = None
 
         for epoch in range(args.start_epoch, args.pretrain_epoch):
-            category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
-            if os.path.isfile(category_save):
-                category_layer_param = torch.load(category_save)
-                model.category_layer.load_state_dict(category_layer_param)
+            # category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+            # if os.path.isfile(category_save):
+            #     category_layer_param = torch.load(category_save)
+            #     model.category_layer.load_state_dict(category_layer_param)
             with torch.autograd.set_detect_anomaly(True):
                 pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
                                                           model=model,
@@ -471,6 +465,7 @@ def main(args):
                             'optimizer_category': optimizer_category.state_dict(),
                             }, path)
 
+
             '''
             ############################
             ############################
@@ -491,6 +486,11 @@ def main(args):
             mlp.append(nn.ReLU(inplace=True).to(device))
             model.classifier = nn.Sequential(*mlp)
             model.classifier.to(device)
+
+            category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+            if os.path.isfile(category_save):
+                category_layer_param = torch.load(category_save)
+                model.category_layer.load_state_dict(category_layer_param)
 
             # save patches per epochs
             cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
