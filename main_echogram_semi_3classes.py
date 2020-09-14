@@ -68,19 +68,19 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=5000,
+    parser.add_argument('--epochs', type=int, default=1000,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--pretrain_epoch', type=int, default=0,
                         help='number of pretrain epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=1, type=int,
+    parser.add_argument('--save_epoch', default=100, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=1,
+    parser.add_argument('--checkpoints', type=int, default=20,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
@@ -88,8 +88,6 @@ def parse_args():
                         help='4 frequencies [18, 38, 120, 200]')
     parser.add_argument('--window_dim', type=int, default=32,
                         help='window size')
-    parser.add_argument('--partition', type=str, default='train_only',
-                        help='echogram partition (tr/val/te) by year')
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
