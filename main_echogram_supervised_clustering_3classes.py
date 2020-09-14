@@ -309,7 +309,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
@@ -333,7 +333,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler3_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(

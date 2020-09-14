@@ -315,7 +315,7 @@ def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
     assert (args.semi_ratio in [0.01, 0.05, 0.1, 0.2]), 'Fix args.semi-ratio in a given range'
 
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
     samplers_bg_unb = torch.load(os.path.join(path_to_echograms, 'bg_unb_11000_tr.pt'))
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
 
@@ -377,7 +377,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler3_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(
