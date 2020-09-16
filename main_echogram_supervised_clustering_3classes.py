@@ -97,7 +97,6 @@ def parse_args():
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
     parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])

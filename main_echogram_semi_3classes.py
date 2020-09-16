@@ -21,8 +21,14 @@ import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-import paths
+from scipy.optimize import linear_sum_assignment
+import matplotlib.pyplot as plt
 
+# os.chdir(os.path.join(os.getcwd(), '6classes', '01p', 'unbal_semisupervised_01p', 'deepcluster'))
+# sys.path.append(os.getcwd())
+# path_to_echograms = '/Users/changkyu/Documents/GitHub/patches_full/32_2011/samplers'
+
+import paths
 import clustering
 import models
 from util import AverageMeter, Logger, UnifLabelSampler
@@ -30,6 +36,7 @@ from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
+from batch.dataset import DatasetImgUnbal
 #############
 from batch.dataset import DatasetGrid
 from batch.samplers.sampler_test import SampleFull
@@ -52,7 +59,7 @@ def parse_args():
                         help='CNN architecture (default: vgg16)')
     parser.add_argument('--clustering', type=str, choices=['Kmeans', 'PIC'],
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
-    parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
+    parser.add_argument('--nmb_cluster', '--k', type=int, default=81,
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
@@ -97,7 +104,6 @@ def parse_args():
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
     parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
@@ -306,7 +312,10 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
     return losses.avg, semi_losses.avg, semi_accuracy
 
 def sampling_echograms_full(args):
+    tr_ratio = [0.97808653, 0.01301181, 0.00890166]
     path_to_echograms = paths.path_to_echograms()
+
+    ########
     samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
@@ -331,15 +340,23 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler3_te.pt'))
+    samplers_test_bal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_bal.pt'))
+    samplers_test_unbal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_unbal.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
-    dataset_test = DatasetImg(
-        samplers_test,
+    dataset_test_bal = DatasetImg(
+        samplers_test_bal,
         args.sampler_probs,
         augmentation_function=None,
         data_transform_function=data_transform)
-    return dataset_test
+
+    dataset_test_unbal = DatasetImgUnbal(
+        samplers_test_unbal,
+        args.sampler_probs,
+        augmentation_function=None,
+        data_transform_function=data_transform)
+
+    return dataset_test_bal, dataset_test_unbal
 
 def main(args):
     # fix random seeds
@@ -441,8 +458,15 @@ def main(args):
                                                 drop_last=False,
                                                 pin_memory=True)
 
-    dataset_test = sampling_echograms_test(args)
-    dataloader_test = torch.utils.data.DataLoader(dataset_test,
+    dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
+    dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
+                                                shuffle=False,
+                                                batch_size=args.batch,
+                                                num_workers=args.workers,
+                                                drop_last=False,
+                                                pin_memory=True)
+
+    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_bal,
                                                 shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
@@ -560,7 +584,6 @@ def main(args):
             nmi_save = pickle.load(ff)
     else:
         nmi_save = []
-
     '''
     #######################
     #######################
@@ -569,6 +592,7 @@ def main(args):
     #######################'''
     for epoch in range(args.start_epoch, args.epochs):
         end = time.time()
+        print('#####################  Start training at Epoch %d ################'% epoch)
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
         model.category_layer = None
@@ -666,25 +690,29 @@ def main(args):
         ##############
         ##############
         '''
-        test_loss, test_accuracy, test_pred, test_label = test(dataloader_test, model, criterion, device, args)
+        test_loss_bal, test_accuracy_bal, test_pred_bal, test_label_bal = test(dataloader_test_bal, model, criterion, device, args)
+        test_loss_unbal, test_accuracy_unbal, test_pred_unbal, test_label_unbal = test(dataloader_test_unbal, model, criterion, device, args)
 
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred, test_label], f)
-
+            with open(os.path.join(args.exp, '..', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+                pickle.dump([test_pred_bal, test_label_bal], f)
+            with open(os.path.join(args.exp, '..', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+                pickle.dump([test_pred_unbal, test_label_unbal], f)
 
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
                   'Time: {1:.3f} s\n'
                   'Pseudo tr_loss: {2:.3f} \n'
                   'SEMI tr_loss: {3:.3f} \n'
-                  'TEST loss: {4:.3f} \n'
-                  'Clustering loss: {5:.3f} \n'
-                  'SEMI accu: {6:.3f} \n'
-                  'TEST accu: {7:.3f} \n'
+                  'TEST_bal loss: {4:.3f} \n'
+                  'TEST_unbal loss: {5:.3f} \n'
+                  'Clustering loss: {6:.3f} \n\n'
+                  'SEMI accu: {7:.3f} \n'
+                  'TEST_bal accu: {8:.3f} \n'
+                  'TEST_unbal accu: {9:.3f} \n'
                   .format(epoch, time.time() - end, pseudo_loss, semi_loss,
-                          test_loss, clustering_loss, semi_accuracy, test_accuracy))
+                          test_loss_bal, test_loss_unbal, clustering_loss, semi_accuracy, test_accuracy_bal, test_accuracy_unbal))
             try:
                 nmi = normalized_mutual_info_score(
                     clustering.arrange_clustering(deepcluster.images_lists),
@@ -715,16 +743,18 @@ def main(args):
         loss_collect[1].append(pseudo_loss)
         loss_collect[2].append(semi_loss)
         loss_collect[3].append(clustering_loss)
-        loss_collect[4].append(test_loss)
-        loss_collect[5].append(semi_accuracy)
-        loss_collect[6].append(test_accuracy)
+        loss_collect[4].append(test_loss_bal)
+        loss_collect[5].append(test_loss_unbal)
+        loss_collect[6].append(semi_accuracy)
+        loss_collect[7].append(test_accuracy_bal)
+        loss_collect[8].append(test_accuracy_unbal)
         with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
         '''
         ############################
         ############################
-        # PSEUDO-LABEL GEN: Test set
+        # PSEUDO-LABEL GEN: Test set (balanced UA)
         ############################
         ############################
         '''
@@ -733,34 +763,81 @@ def main(args):
         model.category_layer = None
 
         print('TEST set: Cluster the features')
-        features_te, input_tensors_te, labels_te = compute_features(dataloader_test, model, len(dataset_test),
+        features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model, len(dataset_test_bal),
                                                                     device=device, args=args)
-        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+        clustering_loss_te_bal, pca_features_te_bal = deepcluster.cluster(features_te_bal, verbose=args.verbose)
 
         mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
         mlp.append(nn.ReLU(inplace=True).to(device))
         model.classifier = nn.Sequential(*mlp)
         model.classifier.to(device)
 
-        nan_location = np.isnan(pca_features_te)
-        inf_location = np.isinf(pca_features_te)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ',
-                  np.sum(inf_location))
+        nan_location_bal = np.isnan(pca_features_te_bal)
+        inf_location_bal = np.isinf(pca_features_te_bal)
+        if (not np.allclose(nan_location_bal, 0)) or (not np.allclose(inf_location_bal, 0)):
+            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_bal), ' Inf count: ',
+                  np.sum(inf_location_bal))
             print('Skip epoch ', epoch)
-            torch.save(pca_features_te, 'te_pca_NaN_%d.pth.tar' % epoch)
-            torch.save(features_te, 'te_feature_NaN_%d.pth.tar' % epoch)
+            torch.save(pca_features_te_bal, 'te_pca_NaN_%d_bal.pth.tar' % epoch)
+            torch.save(features_te_bal, 'te_feature_NaN_%d_bal.pth.tar' % epoch)
             continue
 
         # save patches per epochs
-        cp_epoch_out = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
-                        labels_te]
+        cp_epoch_out_bal = [features_te_bal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_bal,
+                        labels_te_bal]
+
 
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features_te, f)
+            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+                pickle.dump(cp_epoch_out_bal, f)
+            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+                pickle.dump(pca_features_te_bal, f)
+
+
+        '''
+        ############################
+        ############################
+        # PSEUDO-LABEL GEN: Test set (Unbalanced UA)
+        ############################
+        ############################
+        '''
+        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+        model.cluster_layer = None
+        model.category_layer = None
+
+        print('TEST set: Cluster the features')
+        features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal, model, len(dataset_test_unbal),
+                                                                    device=device, args=args)
+        clustering_loss_te_unbal, pca_features_te_unbal = deepcluster.cluster(features_te_unbal, verbose=args.verbose)
+
+        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+        mlp.append(nn.ReLU(inplace=True).to(device))
+        model.classifier = nn.Sequential(*mlp)
+        model.classifier.to(device)
+
+        nan_location_unbal = np.isnan(pca_features_te_unbal)
+        inf_location_unbal = np.isinf(pca_features_te_unbal)
+        if (not np.allclose(nan_location_unbal, 0)) or (not np.allclose(inf_location_unbal, 0)):
+            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_unbal), ' Inf count: ',
+                  np.sum(inf_location_unbal))
+            print('Skip epoch ', epoch)
+            torch.save(pca_features_te_unbal, 'te_pca_NaN_%d_unbal.pth.tar' % epoch)
+            torch.save(features_te_unbal, 'te_feature_NaN_%d_unbal.pth.tar' % epoch)
+            continue
+
+        # save patches per epochs
+        cp_epoch_out_unbal = [features_te_unbal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_unbal,
+                        labels_te_unbal]
+
+
+        if (epoch % args.save_epoch == 0):
+            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+                pickle.dump(cp_epoch_out_unbal, f)
+            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+                pickle.dump(pca_features_te_unbal, f)
+
+
+
 
 
 if __name__ == '__main__':
