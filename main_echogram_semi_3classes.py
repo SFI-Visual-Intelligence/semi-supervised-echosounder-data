@@ -577,7 +577,7 @@ def main(args):
         with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "rb") as f:
             loss_collect = pickle.load(f)
     else:
-        loss_collect = [[], [], [], [], [], [], []]
+        loss_collect = [[], [], [], [], [], [], [], [], []]
 
     if os.path.isfile(os.path.join(args.exp, '..', 'nmi_collect.pickle')):
         with open(os.path.join(args.exp, '..', 'nmi_collect.pickle'), "rb") as ff:
