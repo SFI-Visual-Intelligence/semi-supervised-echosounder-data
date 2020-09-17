@@ -19,7 +19,7 @@ import torchvision.datasets as datasets
 import paths
 
 import clustering
-import models
+from deepcluster import models
 from util import AverageMeter, Logger, UnifLabelSampler
 
 from batch.augmentation.flip_x_axis import flip_x_axis

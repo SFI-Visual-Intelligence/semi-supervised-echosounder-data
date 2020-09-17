@@ -9,8 +9,6 @@ import os
 import pickle
 # import sys
 import time
-import copy
-import faiss
 import numpy as np
 from sklearn.metrics.cluster import normalized_mutual_info_score
 import torch
@@ -19,12 +17,10 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 import paths
 
 import clustering
-import models
+from deepcluster import models
 from util import AverageMeter, Logger, UnifLabelSampler
 
 from batch.augmentation.flip_x_axis import flip_x_axis_img
@@ -33,9 +29,8 @@ from batch.dataset import DatasetImg
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
-from classifier_linearSVC import FeatureLoad
-from scipy.optimize import linear_sum_assignment
-import matplotlib.pyplot as plt
+
+
 # def cluster_acc(Y_pred, Y):
 #     assert Y_pred.size == Y.size
 #     D = max(Y_pred.max(), Y.max())+1

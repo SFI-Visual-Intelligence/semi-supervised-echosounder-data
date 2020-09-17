@@ -9,8 +9,6 @@ import os
 import pickle
 # import sys
 import time
-import copy
-import faiss
 import numpy as np
 from sklearn.metrics.cluster import normalized_mutual_info_score
 import torch
@@ -19,29 +17,20 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 import paths
 
 import clustering
-import models
+from deepcluster import models
 from util import AverageMeter, Logger, UnifLabelSampler
-from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
 #############
-from batch.dataset import DatasetGrid
-from batch.samplers.sampler_test import SampleFull
-from batch.samplers.get_all_patches import GetAllPatches
-from data.echogram import Echogram
 #############
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
-from classifier_linearSVC import SimpleClassifier
-from scipy.optimize import linear_sum_assignment
-import matplotlib.pyplot as plt
+
 
 def parse_args():
     current_dir = os.getcwd()
@@ -54,7 +43,7 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_category', type=int, default=6,
+    parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
     parser.add_argument('--lr_Adam', default=3e-5, type=float,
                         help='learning rate (default: 1e-4)')
@@ -74,13 +63,13 @@ def parse_args():
                         help='number of pretrain epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=1, type=int,
+    parser.add_argument('--save_epoch', default=50, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=1,
+    parser.add_argument('--checkpoints', type=int, default=10,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
@@ -93,14 +82,14 @@ def parse_args():
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
-                        default=os.path.join(current_dir, '..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
+                        default=os.path.join(current_dir, '../../..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
@@ -183,7 +172,7 @@ def test(dataloader, model, crit, device, args):
     label_flat = flatten_list(test_label_save)
     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
     test_accuracy = sum(accu_list) / len(accu_list)
-    return test_losses.avg, test_accuracy, output_flat, label_flat
+    return test_losses.avg, test_accuracy
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -266,7 +255,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
     model.category_layer = model.category_layer.double()
     model.category_layer.to(device)
 
-    category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+    category_save = os.path.join(args.exp, '../../..', 'category_layer.pth.tar')
     if os.path.isfile(category_save):
         category_layer_param = torch.load(category_save)
         model.category_layer.load_state_dict(category_layer_param)
@@ -309,7 +298,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
@@ -333,7 +322,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(
@@ -351,7 +340,7 @@ def main(args):
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
     criterion = nn.CrossEntropyLoss()
-    cluster_log = Logger(os.path.join(args.exp,  '..', 'clusters.pickle'))
+    cluster_log = Logger(os.path.join(args.exp, '../../..', 'clusters.pickle'))
 
     # CNN
     if args.verbose:
@@ -471,7 +460,7 @@ def main(args):
             model.load_state_dict(checkpoint['state_dict'])
             optimizer_body.load_state_dict(checkpoint['optimizer_body'])
             optimizer_category.load_state_dict(checkpoint['optimizer_category'])
-            category_save = os.path.join(args.exp, '..', 'category_layer.pth.tar')
+            category_save = os.path.join(args.exp, '../../..', 'category_layer.pth.tar')
             if os.path.isfile(category_save):
                 category_layer_param = torch.load(category_save)
                 model.category_layer.load_state_dict(category_layer_param)
@@ -481,7 +470,7 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, '..', 'checkpoints')
+    exp_check = os.path.join(args.exp, '../../..', 'checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
@@ -551,18 +540,17 @@ def main(args):
     #                         'optimizer_category': optimizer_category.state_dict(),
     #                         }, path)
 
-    if os.path.isfile(os.path.join(args.exp, '..', 'loss_collect.pickle')):
-        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "rb") as f:
+    if os.path.isfile(os.path.join(args.exp, '../../..', 'loss_collect.pickle')):
+        with open(os.path.join(args.exp, '../../..', 'loss_collect.pickle'), "rb") as f:
             loss_collect = pickle.load(f)
     else:
         loss_collect = [[], [], [], [], [], [], []]
 
-    if os.path.isfile(os.path.join(args.exp, '..', 'nmi_collect.pickle')):
-        with open(os.path.join(args.exp, '..', 'nmi_collect.pickle'), "rb") as ff:
+    if os.path.isfile(os.path.join(args.exp, '../../..', 'nmi_collect.pickle')):
+        with open(os.path.join(args.exp, '../../..', 'nmi_collect.pickle'), "rb") as ff:
             nmi_save = pickle.load(ff)
     else:
         nmi_save = []
-
     '''
     #######################
     #######################
@@ -648,7 +636,7 @@ def main(args):
         # save checkpoint
         if (epoch + 1) % args.checkpoints == 0:
             path = os.path.join(
-                args.exp, '..',
+                args.exp, '../../..',
                 'checkpoints',
                 'checkpoint_' + str(epoch) + '.pth.tar',
             )
@@ -661,6 +649,7 @@ def main(args):
                         'optimizer_category': optimizer_category.state_dict(),
                         }, path)
 
+
         '''
         ##############
         ##############
@@ -668,13 +657,7 @@ def main(args):
         ##############
         ##############
         '''
-        test_loss, test_accuracy, test_pred, test_label = test(dataloader_test, model, criterion, device, args)
-
-        '''Save prediction of the test set'''
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred, test_label], f)
-
+        test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
 
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
@@ -694,7 +677,7 @@ def main(args):
                 )
                 nmi_save.append(nmi)
                 print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open(os.path.join(args.exp, '..', 'nmi_collect.pickle'), "wb") as ff:
+                with open(os.path.join(args.exp, '../../..', 'nmi_collect.pickle'), "wb") as ff:
                     pickle.dump(nmi_save, ff)
             except IndexError:
                 pass
@@ -710,8 +693,8 @@ def main(args):
                     'optimizer_body': optimizer_body.state_dict(),
                     'optimizer_category': optimizer_category.state_dict(),
                     },
-                   os.path.join(args.exp, '..', 'checkpoint.pth.tar'))
-        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '..', 'category_layer.pth.tar'))
+                   os.path.join(args.exp, '../../..', 'checkpoint.pth.tar'))
+        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '../../..', 'category_layer.pth.tar'))
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(pseudo_loss)
@@ -720,7 +703,7 @@ def main(args):
         loss_collect[4].append(test_loss)
         loss_collect[5].append(semi_accuracy)
         loss_collect[6].append(test_accuracy)
-        with open(os.path.join(args.exp, '..', 'loss_collect.pickle'), "wb") as f:
+        with open(os.path.join(args.exp, '../../..', 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
         '''
@@ -759,9 +742,9 @@ def main(args):
                         labels_te]
 
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, '../../..', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, '../../..', 'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump(pca_features_te, f)
 
 

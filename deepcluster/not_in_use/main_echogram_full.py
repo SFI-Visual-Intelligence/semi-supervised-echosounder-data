@@ -24,7 +24,7 @@ import torchvision.datasets as datasets
 import paths
 
 import clustering
-import models
+from deepcluster import models
 from util import AverageMeter, Logger, UnifLabelSampler
 from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
@@ -99,7 +99,7 @@ def parse_args():
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
-                        default=os.path.join(current_dir, '../..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
+                        default=os.path.join(current_dir, '../../..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
@@ -170,7 +170,7 @@ def train(loader, model, crit, opt, epoch, device, args):
         n = len(loader) * epoch + i
         if n % args.checkpoints == 0:
             path = os.path.join(
-                args.exp, '../..',
+                args.exp, '../../..',
                 'checkpoints',
                 'checkpoint_' + str(n / args.checkpoints) + '.pth.tar',
             )
@@ -414,12 +414,12 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, '../..', 'checkpoints')
+    exp_check = os.path.join(args.exp, '../../..', 'checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
     # creating cluster assignments log
-    cluster_log = Logger(os.path.join(args.exp, '../..', 'clusters.pickle'))
+    cluster_log = Logger(os.path.join(args.exp, '../../..', 'clusters.pickle'))
 
     # # Create echogram sampling index
     print('Sample echograms.')
@@ -488,9 +488,9 @@ def main(args):
 
         if (epoch % args.save_epoch == 0):
             end = time.time()
-            with open(os.path.join(args.exp, '../..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, '../../..', 'cp_epoch_%d.pickle' % epoch), "wb") as f:
                 pickle.dump(cp_epoch_out, f)
-            with open(os.path.join(args.exp, '../..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, '../../..', 'pca_epoch_%d.pickle' % epoch), "wb") as f:
                 pickle.dump(pca_features, f)
             print('Feature save time: {0:.2f} s'.format(time.time() - end))
 
@@ -573,12 +573,12 @@ def main(args):
                     'arch': args.arch,
                     'state_dict': model.state_dict(),
                     'optimizer' : optimizer.state_dict()},
-                   os.path.join(args.exp, '../..', 'checkpoint.pth.tar'))
+                   os.path.join(args.exp, '../../..', 'checkpoint.pth.tar'))
 
         # evaluation: echogram reconstruction
         if (epoch % args.save_epoch == 0):
             eval_epoch_out = evaluate(eval_dataloader, model, device=device, args=args)
-            with open(os.path.join(args.exp, '../..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, '../../..', 'eval_epoch_%d.pickle' % epoch), "wb") as f:
                 pickle.dump(eval_epoch_out, f)
 
         print('epoch: ', type(epoch), epoch)
@@ -592,7 +592,7 @@ def main(args):
         loss_collect[2].append(linear_svc.whole_score)
         loss_collect[3].append(linear_svc.pair_score)
         loss_collect[4].append(clustering_loss)
-        with open(os.path.join(args.exp, '../..', 'loss_collect.pickle'), "wb") as f:
+        with open(os.path.join(args.exp, '../../..', 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
         # save cluster assignments

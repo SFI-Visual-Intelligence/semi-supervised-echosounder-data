@@ -9,15 +9,9 @@ import os
 import pickle
 # import sys
 import time
-import copy
 import faiss
 import numpy as np
-from sklearn.metrics.cluster import normalized_mutual_info_score
-import torch
 import torch.nn as nn
-import torch.nn.parallel
-import torch.backends.cudnn as cudnn
-import torch.optim
 import torch.utils.data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
@@ -25,8 +19,6 @@ import torchvision.datasets as datasets
 import paths
 
 import clustering
-import models
-from util import AverageMeter, Logger, UnifLabelSampler
 
 from batch.augmentation.flip_x_axis import flip_x_axis
 from batch.augmentation.add_noise import add_noise
@@ -34,9 +26,7 @@ from batch.augmentation.add_noise import add_noise
 from data.echogram import get_echograms_revised, get_echograms_full
 from batch.dataset import Dataset
 from batch.dataset import DatasetVal
-from batch.dataset_sampler import DatasetSingleSampler
 from batch.samplers.background import Background
-from batch.samplers.seabed import Seabed
 from batch.samplers.shool import Shool
 from batch.samplers.shool_seabed import ShoolSeabed
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf
@@ -45,7 +35,6 @@ from batch.label_transform_functions.index_0_1_27 import index_0_1_27
 from batch.label_transform_functions.relabel_with_threshold_morph_close import relabel_with_threshold_morph_close
 from batch.combine_functions import CombineFunctions
 import chang_patch_sampler as cps
-from scipy.optimize import linear_sum_assignment
 from data.echogram import Echogram
 
 def parse_args():

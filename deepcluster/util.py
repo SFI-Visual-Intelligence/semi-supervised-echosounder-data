@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from torch.utils.data.sampler import Sampler
 
-import models
+from deepcluster import models
 
 
 def load_model(path):

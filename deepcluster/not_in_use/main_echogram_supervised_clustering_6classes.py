@@ -24,7 +24,7 @@ import torchvision.datasets as datasets
 import paths
 
 import clustering
-import models
+from deepcluster import models
 from util import AverageMeter, Logger, UnifLabelSampler
 from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
@@ -54,7 +54,7 @@ def parse_args():
                         default='Kmeans', help='clustering algorithm (default: Kmeans)')
     parser.add_argument('--nmb_cluster', '--k', type=int, default=64,
                         help='number of cluster for k-means (default: 10000)')
-    parser.add_argument('--nmb_category', type=int, default=3,
+    parser.add_argument('--nmb_category', type=int, default=6,
                         help='number of ground truth classes(category)')
     parser.add_argument('--lr_Adam', default=3e-5, type=float,
                         help='learning rate (default: 1e-4)')
@@ -68,19 +68,19 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=5000,
+    parser.add_argument('--epochs', type=int, default=45,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--pretrain_epoch', type=int, default=0,
                         help='number of pretrain epochs to run (default: 200)')
     parser.add_argument('--start_epoch', default=0, type=int,
                         help='manual epoch number (useful on restarts) (default: 0)')
-    parser.add_argument('--save_epoch', default=50, type=int,
+    parser.add_argument('--save_epoch', default=1, type=int,
                         help='save features every epoch number (default: 20)')
     parser.add_argument('--batch', default=32, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=10,
+    parser.add_argument('--checkpoints', type=int, default=1,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--stride', type=int, default=32, help='stride of echogram patches for eval')
-    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.05, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
@@ -183,7 +183,7 @@ def test(dataloader, model, crit, device, args):
     label_flat = flatten_list(test_label_save)
     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
     test_accuracy = sum(accu_list) / len(accu_list)
-    return test_losses.avg, test_accuracy
+    return test_losses.avg, test_accuracy, output_flat, label_flat
 
 def compute_features(dataloader, model, N, device, args):
     if args.verbose:
@@ -309,7 +309,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_tr.pt'))
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler6_tr.pt'))
 
     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
@@ -333,7 +333,7 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_test = torch.load(os.path.join(path_to_echograms, 'combined_sampler3_te.pt'))
+    samplers_test = torch.load(os.path.join(path_to_echograms, 'sampler6_te.pt'))
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
     dataset_test = DatasetImg(
@@ -428,13 +428,13 @@ def main(args):
     ########################################'''
 
     print('Sample echograms.')
-    dataset_cp, dataset_semi = sampling_echograms_full(args)
-    dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
+    _, dataset_semi = sampling_echograms_full(args)
+    # dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
 
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
                                                 shuffle=False,
@@ -491,7 +491,7 @@ def main(args):
     PRETRAIN: commented
     #######################
     #######################'''
-    # if args.start_epoch < args.pretrain_epoch:
+    '''    # if args.start_epoch < args.pretrain_epoch:
     #     if os.path.isfile(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle')):
     #         with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "rb") as f:
     #             pretrain_loss_collect = pickle.load(f)
@@ -549,7 +549,7 @@ def main(args):
     #                         'state_dict': model.state_dict(),
     #                         'optimizer_body': optimizer_body.state_dict(),
     #                         'optimizer_category': optimizer_category.state_dict(),
-    #                         }, path)
+    #                         }, path)'''
 
     if os.path.isfile(os.path.join(args.exp, '../..', 'loss_collect.pickle')):
         with open(os.path.join(args.exp, '../..', 'loss_collect.pickle'), "rb") as f:
@@ -562,6 +562,7 @@ def main(args):
             nmi_save = pickle.load(ff)
     else:
         nmi_save = []
+
     '''
     #######################
     #######################
@@ -582,7 +583,7 @@ def main(args):
         #######################
         '''
         print('Cluster the features')
-        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
+        features_train, input_tensors_train, labels_train = compute_features(dataloader_semi, model, len(dataset_semi), device=device, args=args)
         clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
 
         nan_location = np.isnan(pca_features)
@@ -660,7 +661,6 @@ def main(args):
                         'optimizer_category': optimizer_category.state_dict(),
                         }, path)
 
-
         '''
         ##############
         ##############
@@ -668,7 +668,12 @@ def main(args):
         ##############
         ##############
         '''
-        test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
+        test_loss, test_accuracy, test_pred, test_label = test(dataloader_test, model, criterion, device, args)
+
+        '''Save prediction of the test set'''
+        if (epoch % args.save_epoch == 0):
+            with open(os.path.join(args.exp, '../..', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump([test_pred, test_label], f)
 
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'

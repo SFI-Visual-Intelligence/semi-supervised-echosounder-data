@@ -22,7 +22,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
 import clustering
-import models
+from deepcluster import models
 from util import AverageMeter, Logger, UnifLabelSampler
 
 

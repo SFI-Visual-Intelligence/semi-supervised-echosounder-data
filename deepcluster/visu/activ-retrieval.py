@@ -16,7 +16,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 from util import load_model
 
 

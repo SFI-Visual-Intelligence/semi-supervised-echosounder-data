@@ -16,7 +16,7 @@ import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
 
-sys.path.insert(0, '..')
+sys.path.insert(0, '../..')
 from util import load_model
 
 parser = argparse.ArgumentParser(description='Gradient ascent visualisation')
