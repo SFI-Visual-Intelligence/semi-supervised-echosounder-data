@@ -178,7 +178,7 @@ def test(dataloader, model, crit, device, args):
             test_output_save.append(output.data.cpu().numpy())
             test_label_save.append(label.data.cpu().numpy())
 
-            if args.verbose and (i % 10) == 0:
+            if args.verbose and (i % args.display_count) == 0:
                 print('{0} / {1}\t'
                       'TEST_Loss: {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(dataloader), loss=test_losses))
 
@@ -217,7 +217,7 @@ def compute_features(dataloader, model, N, device, args):
 
             # measure elapsed time
             batch_time.update(time.time() - end)
-            if args.verbose and (i % 10) == 0:
+            if args.verbose and (i % args.display_count) == 0:
                 print('{0} / {1}\t'
                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
                       .format(i, len(dataloader), batch_time=batch_time))
