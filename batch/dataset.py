@@ -148,23 +148,12 @@ class DatasetImgUnbal():
                  sampler_probs=None,
                  augmentation_function=None,
                  data_transform_function=None):
-        """
-        A dataset is used to draw random samples
-        :param samplers: The samplers used to draw samples
-        :param window_size: expected window size
-        :param n_samples:
-        :param frequencies:
-        :param sampler_probs:
-        :param augmentation_function:
-        :param label_transform_function:
-        :param data_transform_function:
-        """
+
         self.samplers = samplers
         self.n_samples = int(len(self.samplers) * len(self.samplers[0]))
         self.sampler_probs = sampler_probs
         self.augmentation_function = augmentation_function
         self.data_transform_function = data_transform_function
-
 
     def __getitem__(self, index):
         #Select which sampler to use
@@ -178,6 +167,9 @@ class DatasetImgUnbal():
         if self.data_transform_function is not None:
             data = self.data_transform_function(data)
         return data, label
+
+    def __len__(self):
+        return self.n_samples
 
 class DatasetImg():
     def __init__(self, samplers,
