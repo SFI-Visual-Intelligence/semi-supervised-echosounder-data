@@ -489,7 +489,7 @@ def main(args):
                                                 drop_last=False,
                                                 pin_memory=True)
 
-    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_bal,
+    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
                                                 shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
