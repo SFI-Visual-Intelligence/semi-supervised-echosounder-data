@@ -9,6 +9,8 @@ import os
 import pickle
 import sys
 import time
+import copy
+import faiss
 import numpy as np
 from sklearn.metrics.cluster import normalized_mutual_info_score
 import torch
@@ -17,24 +19,33 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+from scipy.optimize import linear_sum_assignment
+import matplotlib.pyplot as plt
 
 current_dir = os.getcwd()
-sys.path.append(os.path.join(current_dir, '../..', '..', 'deepcluster'))
+sys.path.append(os.path.join(current_dir, '..', '..', 'deepcluster'))
 
 import paths
 import clustering
-from deepcluster import models
+import models
 from util import AverageMeter, Logger, UnifLabelSampler
+from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
 from batch.dataset import DatasetImgUnbal
 #############
+from batch.dataset import DatasetGrid
+from batch.samplers.sampler_test import SampleFull
+from batch.samplers.get_all_patches import GetAllPatches
+from data.echogram import Echogram
 #############
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
-
+from classifier_linearSVC import SimpleClassifier
 
 def parse_args():
     current_dir = os.getcwd()
