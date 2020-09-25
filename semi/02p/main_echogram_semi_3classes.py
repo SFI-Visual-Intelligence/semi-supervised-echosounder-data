@@ -7,7 +7,7 @@
 import argparse
 import os
 import pickle
-# import sys
+import sys
 import time
 import copy
 import faiss
@@ -24,13 +24,12 @@ import torchvision.datasets as datasets
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
 
-# os.chdir(os.path.join(os.getcwd(), '6classes', '01p', 'unbal_semisupervised_01p', 'deepcluster'))
-# sys.path.append(os.getcwd())
-# path_to_echograms = '/Users/changkyu/Documents/GitHub/patches_full/32_2011/samplers'
+current_dir = os.getcwd()
+sys.path.append(os.path.join(current_dir, '..', '..', 'deepcluster'))
 
 import paths
 import clustering
-from deepcluster import models
+import models
 from util import AverageMeter, Logger, UnifLabelSampler
 from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
@@ -47,8 +46,6 @@ from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
 from classifier_linearSVC import SimpleClassifier
-from scipy.optimize import linear_sum_assignment
-import matplotlib.pyplot as plt
 
 def parse_args():
     current_dir = os.getcwd()
@@ -89,6 +86,8 @@ def parse_args():
                         help='pca dimension (default: 128)')
     parser.add_argument('--checkpoints', type=int, default=20,
                         help='how many iterations between two checkpoints (default: 25000)')
+    parser.add_argument('--display_count', type=int, default=200,
+                        help='display iterations for every <display_count> numbers')
     parser.add_argument('--seed', type=int, default=31, help='random seed (default: 31)')
     parser.add_argument('--verbose', type=bool, default=True, help='chatty')
     parser.add_argument('--frequencies', type=list, default=[18, 38, 120, 200],
@@ -98,13 +97,13 @@ def parse_args():
     parser.add_argument('--sampler_probs', type=list, default=None,
                         help='[bg, sh27, sbsh27, sh01, sbsh01], default=[1, 1, 1, 1, 1]')
     parser.add_argument('--resume',
-                        default=os.path.join(current_dir, '../..', 'checkpoint.pth.tar'), type=str, metavar='PATH',
+                        default=os.path.join(current_dir, 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--semi_ratio', type=float, default=0.2, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=0.025, help='ratio of the labeled samples')
 
     return parser.parse_args(args=[])
 
@@ -148,7 +147,7 @@ def supervised_train(loader, model, crit, opt_body, opt_category, epoch, device,
         supervised_output_save.append(output.data.cpu().numpy())
         supervised_label_save.append(label.data.cpu().numpy())
 
-        if args.verbose and (i % 5) == 0:
+        if args.verbose and (i % args.display_count) == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'SUPERVISED__Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(loader), loss=supervised_losses))
@@ -179,7 +178,7 @@ def test(dataloader, model, crit, device, args):
             test_output_save.append(output.data.cpu().numpy())
             test_label_save.append(label.data.cpu().numpy())
 
-            if args.verbose and (i % 10) == 0:
+            if args.verbose and (i % args.display_count) == 0:
                 print('{0} / {1}\t'
                       'TEST_Loss: {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(dataloader), loss=test_losses))
 
@@ -218,7 +217,7 @@ def compute_features(dataloader, model, N, device, args):
 
             # measure elapsed time
             batch_time.update(time.time() - end)
-            if args.verbose and (i % 10) == 0:
+            if args.verbose and (i % args.display_count) == 0:
                 print('{0} / {1}\t'
                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
                       .format(i, len(dataloader), batch_time=batch_time))
@@ -253,7 +252,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if args.verbose and (i % 5) == 0:
+        if args.verbose and (i % args.display_count) == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
@@ -270,7 +269,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
     model.category_layer = model.category_layer.double()
     model.category_layer.to(device)
 
-    category_save = os.path.join(args.exp, '../..', 'category_layer.pth.tar')
+    category_save = os.path.join(args.exp, 'category_layer.pth.tar')
     if os.path.isfile(category_save):
         category_layer_param = torch.load(category_save)
         model.category_layer.load_state_dict(category_layer_param)
@@ -300,7 +299,7 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
         semi_label_save.append(label.data.cpu().numpy())
 
         # measure elapsed time
-        if args.verbose and (i % 5) == 0:
+        if args.verbose and (i % args.display_count) == 0:
             print('Epoch: [{0}][{1}/{2}]\t'
                   'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
                   .format(epoch, i, len(semi_loader), loss=semi_losses))
@@ -366,7 +365,7 @@ def main(args):
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
     criterion = nn.CrossEntropyLoss()
-    cluster_log = Logger(os.path.join(args.exp, '../..', 'clusters.pickle'))
+    cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
 
     # CNN
     if args.verbose:
@@ -466,7 +465,7 @@ def main(args):
                                                 drop_last=False,
                                                 pin_memory=True)
 
-    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_bal,
+    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
                                                 shuffle=False,
                                                 batch_size=args.batch,
                                                 num_workers=args.workers,
@@ -493,7 +492,7 @@ def main(args):
             model.load_state_dict(checkpoint['state_dict'])
             optimizer_body.load_state_dict(checkpoint['optimizer_body'])
             optimizer_category.load_state_dict(checkpoint['optimizer_category'])
-            category_save = os.path.join(args.exp, '../..', 'category_layer.pth.tar')
+            category_save = os.path.join(args.exp,  'category_layer.pth.tar')
             if os.path.isfile(category_save):
                 category_layer_param = torch.load(category_save)
                 model.category_layer.load_state_dict(category_layer_param)
@@ -503,84 +502,26 @@ def main(args):
             print("=> no checkpoint found at '{}'".format(args.resume))
 
     # creating checkpoint repo
-    exp_check = os.path.join(args.exp, '../..', 'checkpoints')
+    exp_check = os.path.join(args.exp, 'checkpoints')
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
-    '''
-    #######################
-    #######################    
-    PRETRAIN: commented
-    #######################
-    #######################'''
-    # if args.start_epoch < args.pretrain_epoch:
-    #     if os.path.isfile(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle')):
-    #         with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "rb") as f:
-    #             pretrain_loss_collect = pickle.load(f)
-    #     else:
-    #         pretrain_loss_collect = [[], [], [], [], []]
-    #     print('Start pretraining with %d percent of the dataset from epoch %d/(%d)'
-    #           % (int(args.semi_ratio * 100), args.start_epoch, args.pretrain_epoch))
-    #     model.cluster_layer = None
-    #
-    #     for epoch in range(args.start_epoch, args.pretrain_epoch):
-    #         with torch.autograd.set_detect_anomaly(True):
-    #             pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
-    #                                                       model=model,
-    #                                                       crit=criterion,
-    #                                                       opt_body=optimizer_body,
-    #                                                       opt_category=optimizer_category,
-    #                                                       epoch=epoch, device=device, args=args)
-    #         test_loss, test_accuracy = test(dataloader_test, model, criterion, device, args)
-    #
-    #         # print log
-    #         if args.verbose:
-    #             print('###### Epoch [{0}] ###### \n'
-    #                   'PRETRAIN tr_loss: {1:.3f} \n'
-    #                   'TEST loss: {2:.3f} \n'
-    #                   'PRETRAIN tr_accu: {3:.3f} \n'
-    #                   'TEST accu: {4:.3f} \n'.format(epoch, pre_loss, test_loss, pre_accuracy, test_accuracy))
-    #         pretrain_loss_collect[0].append(epoch)
-    #         pretrain_loss_collect[1].append(pre_loss)
-    #         pretrain_loss_collect[2].append(test_loss)
-    #         pretrain_loss_collect[3].append(pre_accuracy)
-    #         pretrain_loss_collect[4].append(test_accuracy)
-    #
-    #         torch.save({'epoch': epoch + 1,
-    #                     'arch': args.arch,
-    #                     'state_dict': model.state_dict(),
-    #                     'optimizer_body': optimizer_body.state_dict(),
-    #                     'optimizer_category': optimizer_category.state_dict(),
-    #                     },
-    #                    os.path.join(args.exp,  '..', 'checkpoint.pth.tar'))
-    #         torch.save(model.category_layer.state_dict(), os.path.join(args.exp,  '..', 'category_layer.pth.tar'))
-    #
-    #         with open(os.path.join(args.exp, '..', 'pretrain_loss_collect.pickle'), "wb") as f:
-    #             pickle.dump(pretrain_loss_collect, f)
-    #
-    #         if (epoch+1) % args.checkpoints == 0:
-    #             path = os.path.join(
-    #                 args.exp, '..',
-    #                 'checkpoints',
-    #                 'checkpoint_' + str(epoch) + '.pth.tar',
-    #             )
-    #             if args.verbose:
-    #                 print('Save checkpoint at: {0}'.format(path))
-    #             torch.save({'epoch': epoch + 1,
-    #                         'arch': args.arch,
-    #                         'state_dict': model.state_dict(),
-    #                         'optimizer_body': optimizer_body.state_dict(),
-    #                         'optimizer_category': optimizer_category.state_dict(),
-    #                         }, path)
+    exp_bal = os.path.join(args.exp, 'bal')
+    exp_unbal = os.path.join(args.exp, 'unbal')
+    for dir_bal in [exp_bal, exp_unbal]:
+        for dir_2 in ['features', 'pca_features', 'pred']:
+            dir_to_make = os.path.join(dir_bal, dir_2)
+            if not os.path.isdir(dir_to_make):
+                os.makedirs(dir_to_make)
 
-    if os.path.isfile(os.path.join(args.exp, '../..', 'loss_collect.pickle')):
-        with open(os.path.join(args.exp, '../..', 'loss_collect.pickle'), "rb") as f:
+    if os.path.isfile(os.path.join(args.exp, 'loss_collect.pickle')):
+        with open(os.path.join(args.exp, 'loss_collect.pickle'), "rb") as f:
             loss_collect = pickle.load(f)
     else:
         loss_collect = [[], [], [], [], [], [], [], [], []]
 
-    if os.path.isfile(os.path.join(args.exp, '../..', 'nmi_collect.pickle')):
-        with open(os.path.join(args.exp, '../..', 'nmi_collect.pickle'), "rb") as ff:
+    if os.path.isfile(os.path.join(args.exp, 'nmi_collect.pickle')):
+        with open(os.path.join(args.exp, 'nmi_collect.pickle'), "rb") as ff:
             nmi_save = pickle.load(ff)
     else:
         nmi_save = []
@@ -670,7 +611,7 @@ def main(args):
         # save checkpoint
         if (epoch + 1) % args.checkpoints == 0:
             path = os.path.join(
-                args.exp, '../..',
+                args.exp,
                 'checkpoints',
                 'checkpoint_' + str(epoch) + '.pth.tar',
             )
@@ -682,6 +623,7 @@ def main(args):
                         'optimizer_body': optimizer_body.state_dict(),
                         'optimizer_category': optimizer_category.state_dict(),
                         }, path)
+
 
         '''
         ##############
@@ -695,9 +637,9 @@ def main(args):
 
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '../..', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'bal', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
                 pickle.dump([test_pred_bal, test_label_bal], f)
-            with open(os.path.join(args.exp, '../..', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'unbal', 'pred', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
                 pickle.dump([test_pred_unbal, test_label_unbal], f)
 
         if args.verbose:
@@ -720,7 +662,7 @@ def main(args):
                 )
                 nmi_save.append(nmi)
                 print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open(os.path.join(args.exp, '../..', 'nmi_collect.pickle'), "wb") as ff:
+                with open(os.path.join(args.exp, 'nmi_collect.pickle'), "wb") as ff:
                     pickle.dump(nmi_save, ff)
             except IndexError:
                 pass
@@ -736,8 +678,8 @@ def main(args):
                     'optimizer_body': optimizer_body.state_dict(),
                     'optimizer_category': optimizer_category.state_dict(),
                     },
-                   os.path.join(args.exp, '../..', 'checkpoint.pth.tar'))
-        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, '../..', 'category_layer.pth.tar'))
+                   os.path.join(args.exp, 'checkpoint.pth.tar'))
+        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
 
         loss_collect[0].append(epoch)
         loss_collect[1].append(pseudo_loss)
@@ -748,7 +690,7 @@ def main(args):
         loss_collect[6].append(semi_accuracy)
         loss_collect[7].append(test_accuracy_bal)
         loss_collect[8].append(test_accuracy_unbal)
-        with open(os.path.join(args.exp, '../..', 'loss_collect.pickle'), "wb") as f:
+        with open(os.path.join(args.exp, 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
         '''
@@ -788,9 +730,9 @@ def main(args):
 
 
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '../..', 'cp_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'bal', 'features', 'cp_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
                 pickle.dump(cp_epoch_out_bal, f)
-            with open(os.path.join(args.exp, '../..', 'pca_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'bal', 'pca_features',  'pca_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
                 pickle.dump(pca_features_te_bal, f)
 
 
@@ -831,12 +773,10 @@ def main(args):
 
 
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, '../..', 'cp_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'unbal', 'features', 'cp_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
                 pickle.dump(cp_epoch_out_unbal, f)
-            with open(os.path.join(args.exp, '../..', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'unbal', 'pca_features', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
                 pickle.dump(pca_features_te_unbal, f)
-
-
 
 
 
