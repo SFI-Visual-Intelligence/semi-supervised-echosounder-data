@@ -26,17 +26,12 @@ class EarlyStopping:
         self.val_accu_max = 0
         self.delta = delta
         self.trace_func = trace_func
-        self.path = os.path.join(
-            os.getcwd(),
-            'checkpoints_early', 'checkpoint_early.pth.tar')
-        if not os.path.isdir(os.path.join(os.getcwd(), 'checkpoints_early')):
-            os.makedirs(os.path.join(os.getcwd(), 'checkpoints_early'))
 
-    def __call__(self, val_accu, epoch, args, model, optimizer_body, optimizer_category):
+    def __call__(self, val_accu, epoch, args, model, optimizer_body, optimizer_category, path):
         score = val_accu
         if self.best_score is None:
             self.best_score = score
-            self.save_checkpoint(val_accu, epoch, args, model, optimizer_body, optimizer_category)
+            self.save_checkpoint(val_accu, epoch, args, model, optimizer_body, optimizer_category, path)
         elif score < self.best_score + self.delta:
             self.counter += 1
             self.trace_func(f'EarlyStopping counter: {self.counter} out of {self.patience}')
@@ -44,18 +39,18 @@ class EarlyStopping:
                 self.early_stop = True
         else:
             self.best_score = score
-            self.save_checkpoint(val_accu, epoch, args, model, optimizer_body, optimizer_category)
+            self.save_checkpoint(val_accu, epoch, args, model, optimizer_body, optimizer_category, path)
             self.counter = 0
 
-    def save_checkpoint(self, val_accu, epoch, args, model, optimizer_body, optimizer_category):
+    def save_checkpoint(self, val_accu, epoch, args, model, optimizer_body, optimizer_category, path):
         '''Saves model when validation increase increase.'''
         if self.verbose:
             self.trace_func(f'Validation accu increased ({self.val_accu_max:.6f} --> {val_accu:.6f}).  Saving model ...')
-        torch.save(model.state_dict(), self.path)
+        torch.save(model.state_dict(), path)
         torch.save({'epoch': epoch + 1,
                     'arch': args.arch,
                     'state_dict': model.state_dict(),
                     'optimizer_body': optimizer_body.state_dict(),
                     'optimizer_category': optimizer_category.state_dict(),
-                    }, self.path)
+                    }, path)
         self.val_accu_max = val_accu

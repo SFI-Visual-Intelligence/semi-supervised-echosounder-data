@@ -100,11 +100,14 @@ def parse_args():
     parser.add_argument('--resume',
                         default=os.path.join(current_dir, 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
+    parser.add_argument('--early_path',
+                        default= os.path.join(current_dir, 'checkpoints', 'checkpoint_earlystop.pth.tar'), type=str, metavar='PATH',
+                        help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--patience', type=int, default=100, help='Earlystopping patience')
+    parser.add_argument('--patience', type=int, default=2, help='Earlystopping patience')
     parser.add_argument('--semi_ratio', type=float, default=1, help='ratio of the labeled samples')
     return parser.parse_args(args=[])
 
@@ -159,6 +162,44 @@ def supervised_train(loader, model, crit, opt_body, opt_category, epoch, device,
     supervised_accuracy = sum(supervised_accu_list) / len(supervised_accu_list)
     return supervised_losses.avg, supervised_accuracy
 
+def compute_features(dataloader, model, N, device, args):
+    if args.verbose:
+        print('Compute features')
+    batch_time = AverageMeter()
+    model.eval()
+    # discard the label information in the dataloader
+    input_tensors = []
+    labels = []
+    with torch.no_grad():
+         for i, (input_tensor, label) in enumerate(dataloader):
+            end = time.time()
+            input_tensor.double()
+            input_var = torch.autograd.Variable(input_tensor.to(device))
+            aux = model(input_var).data.cpu().numpy()
+
+            if i == 0:
+                features = np.zeros((N, aux.shape[1]), dtype='float32')
+
+            aux = aux.astype('float32')
+            if i < len(dataloader) - 1:
+                features[i * args.batch: (i + 1) * args.batch] = aux
+            else:
+                # special treatment for final batch
+                features[i * args.batch:] = aux
+            input_tensors.append(input_tensor.data.cpu().numpy())
+            labels.append(label.data.cpu().numpy())
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            if args.verbose and (i % args.display_count) == 0:
+                print('{0} / {1}\t'
+                      'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
+                      .format(i, len(dataloader), batch_time=batch_time))
+         input_tensors = np.concatenate(input_tensors, axis=0)
+         labels = np.concatenate(labels, axis=0)
+         return features, input_tensors, labels
+
+
 def test(dataloader, model, crit, device, args):
     if args.verbose:
         print('Test')
@@ -191,8 +232,6 @@ def test(dataloader, model, crit, device, args):
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
-
-    ########
     samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
     supervised_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_supervised = []
@@ -209,6 +248,62 @@ def sampling_echograms_full(args):
         data_transform_function=data_transform)
 
     return dataset_semi
+
+def sampling_echograms_for_s3vm(args):
+    path_to_echograms = paths.path_to_echograms()
+    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
+    samplers_bg = torch.load(os.path.join(path_to_echograms, 'train_bg_32766.pt'))
+    list_length = len(samplers_bg) // args.nmb_category
+    samplers_bg = [samplers_bg[i*list_length: (i+1)*list_length] for i in range(args.nmb_category)]
+    augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
+    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
+
+    dataset_train_full = DatasetImg(
+        samplers_train,
+        args.sampler_probs,
+        augmentation_function=augmentation,
+        data_transform_function=data_transform)
+
+    dataset_bg_full = DatasetImg(
+        samplers_bg,
+        args.sampler_probs,
+        augmentation_function=augmentation,
+        data_transform_function=data_transform)
+
+    return dataset_train_full, dataset_bg_full
+
+# def feature_save(train_full, bg_full):
+#     tr_ratio = [0.97808653, 0.01301181, 0.00890166]
+#     semi_ratios = [0.1, 0.05, 0.025]
+#
+#     for semi_ratio in semi_ratios:
+#         percentage = str(int(semi_ratio * 100)).zfill(2)
+#         supervised_count = int(len(train_full[0]) * semi_ratio)
+#
+#     total_unsupervised_count = int((len(samplers_train[0]) - supervised_count) * args.nmb_category)
+#
+#     unlab_size = [int(ratio * total_unsupervised_count) for ratio in tr_ratio]
+#     if np.sum(unlab_size) != total_unsupervised_count:
+#         unlab_size[0] += total_unsupervised_count - np.sum(unlab_size)
+#
+#     samplers_supervised = []
+#     samplers_unsupervised = []
+#     for samplers in samplers_train:
+#         samplers_supervised.append(samplers[:supervised_count])
+#         samplers_unsupervised.append(samplers[supervised_count:])
+#     samplers_unsupervised[0].extend(samplers_bg)
+#
+#     samplers_unbal_unlab = []
+#     for sampler, size in zip(samplers_unsupervised, unlab_size):
+#         samplers_unbal_unlab.append(sampler[:size])
+#
+#     samplers_semi_unbal_unlab_long = []
+#     for sampler_unb_unl in samplers_unbal_unlab:
+#         samplers_semi_unbal_unlab_long.extend(sampler_unb_unl)
+#
+#     num_classes = len(samplers_train)
+#     list_length = len(samplers_semi_unbal_unlab_long) // num_classes
+#     samplers_unanno = [samplers_semi_unbal_unlab_long[i*list_length: (i+1)*list_length] for i in range(num_classes)]
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
@@ -317,6 +412,7 @@ def main(args):
     print('Sample echograms.')
     dataset_semi = sampling_echograms_full(args)
 
+
     dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
                                                 shuffle=False,
                                                 batch_size=args.batch,
@@ -339,6 +435,13 @@ def main(args):
                                                 drop_last=False,
                                                 pin_memory=True)
 
+    dataset_bg_full = sampling_echograms_for_s3vm(args)
+    dataloader_bg = torch.utils.data.DataLoader(dataset_bg_full,
+                                                shuffle=False,
+                                                batch_size=args.batch,
+                                                num_workers=args.workers,
+                                                drop_last=False,
+                                                pin_memory=True)
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -470,25 +573,59 @@ def main(args):
                             'optimizer_category': optimizer_category.state_dict(),
                             }, path)
 
-            early_stopping(test_accuracy_bal, epoch, args, model, optimizer_body, optimizer_category)
+            early_stopping(test_accuracy_bal, epoch, args, model, optimizer_body, optimizer_category, args.early_path)
             if early_stopping.early_stop:
                 print('Early stopping')
-                path = os.path.join(
-                    args.exp,
-                    'checkpoints',
-                    'checkpoint_' + str(epoch) + '_final.pth.tar',
-                )
-                if args.verbose:
-                    print('Save checkpoint at: {0}'.format(path))
-                torch.save({'epoch': epoch + 1,
-                            'arch': args.arch,
-                            'state_dict': model.state_dict(),
-                            'optimizer_body': optimizer_body.state_dict(),
-                            'optimizer_category': optimizer_category.state_dict(),
-                            }, path)
+                checkpoint = torch.load(args.early_path)
+                args.start_epoch = checkpoint['epoch']
+                # remove top located layer parameters from checkpoint
+                copy_checkpoint_state_dict = checkpoint['state_dict'].copy()
+                for key in list(copy_checkpoint_state_dict):
+                    if 'cluster_layer' in key:
+                        del copy_checkpoint_state_dict[key]
+                checkpoint['state_dict'] = copy_checkpoint_state_dict
+                model.load_state_dict(checkpoint['state_dict'])
+                optimizer_body.load_state_dict(checkpoint['optimizer_body'])
+                optimizer_category.load_state_dict(checkpoint['optimizer_category'])
+                print("=> loaded checkpoint '{}' (epoch {})"
+                      .format(args.early_path, checkpoint['epoch']))
+
+                model.classifier = nn.Sequential(*list(model.classifier.children())[:-1])  # remove ReLU at classifier [:-1]
+                model.cluster_layer = None
+                model.category_layer = None
+                features_train_anno, input_tensors_train_anno, labels_train_anno = compute_features(dataloader_semi,
+                                                                                                    model,
+                                                                                                    len(dataloader_semi),
+                                                                                                    device=device,
+                                                                                                    args=args)
+                train_anno = [features_train_anno, labels_train_anno]
+                with open(os.path.join(args.exp, 'train_anno_full.pickle'), "wb") as f:
+                    pickle.dump(train_anno, f)
+
+                features_train_unanno, input_tensors_train_unanno, labels_train_unanno = compute_features(
+                    dataloader_bg, model, len(dataloader_bg), device=device, args=args)
+                train_unanno = [features_train_unanno, labels_train_unanno]
+                with open(os.path.join(args.exp, 'train_bg.pickle'), "wb") as f:
+                    pickle.dump(train_unanno, f)
+                '''
+                TESTSET
+                '''
+                print('TEST set: Cluster the features')
+                features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model,
+                                                                                        len(dataset_test_bal),
+                                                                                        device=device, args=args)
+                cp_epoch_out_bal = [features_te_bal, labels_te_bal]
+                with open(os.path.join(args.exp,  'te_bal.pickle' % epoch), "wb") as f:
+                    pickle.dump(cp_epoch_out_bal, f)
+
+                features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal,
+                                                                                              model,
+                                                                                              len(dataset_test_unbal),
+                                                                                              device=device, args=args)
+                cp_epoch_out_unbal = [features_te_unbal, labels_te_unbal]
+                with open(os.path.join(args.exp, 'te_unbal.pickle' % epoch), "wb") as f:
+                    pickle.dump(cp_epoch_out_unbal, f)
                 break
-
-
 
 if __name__ == '__main__':
     args = parse_args()
