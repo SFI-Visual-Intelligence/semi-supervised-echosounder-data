@@ -536,6 +536,7 @@ def main(args):
                                 'optimizer_category': optimizer_category.state_dict(),
                                 }, path)
 
+                args.early_path = os.path.join(current_dir, 'checkpoints', 'checkpoint_earlystop_r%s.pth.tar' % percentage)
                 early_stopping(test_accuracy_bal, epoch, args, model, optimizer_body, optimizer_category, args.early_path)
                 if early_stopping.early_stop:
                     print('Early stopping')
