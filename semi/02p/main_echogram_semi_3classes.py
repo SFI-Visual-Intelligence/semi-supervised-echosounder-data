@@ -46,6 +46,7 @@ from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
 from batch.data_transform_functions.db_with_limits import db_with_limits_img
 from batch.combine_functions import CombineFunctions
 from classifier_linearSVC import SimpleClassifier
+from earlystopping import EarlyStopping, stopping_args
 
 def parse_args():
     current_dir = os.getcwd()
@@ -357,6 +358,75 @@ def sampling_echograms_test(args):
 
     return dataset_test_bal, dataset_test_unbal
 
+def produce_test_result_bal(epoch, model, dataloader_test_bal, dataset_test_bal, device, args, deepcluster):
+    model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+    model.cluster_layer = None
+    model.category_layer = None
+
+    print('TEST set: Cluster the features')
+    features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model, len(dataset_test_bal),
+                                                                device=device, args=args)
+    clustering_loss_te_bal, pca_features_te_bal = deepcluster.cluster(features_te_bal, verbose=args.verbose)
+
+    mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+    mlp.append(nn.ReLU(inplace=True).to(device))
+    model.classifier = nn.Sequential(*mlp)
+    model.classifier.to(device)
+
+    # nan_location_bal = np.isnan(pca_features_te_bal)
+    # inf_location_bal = np.isinf(pca_features_te_bal)
+    # if (not np.allclose(nan_location_bal, 0)) or (not np.allclose(inf_location_bal, 0)):
+    #     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_bal), ' Inf count: ',
+    #           np.sum(inf_location_bal))
+    #     print('Skip epoch ', epoch)
+    #     torch.save(pca_features_te_bal, 'te_pca_NaN_%d_bal.pth.tar' % epoch)
+    #     torch.save(features_te_bal, 'te_feature_NaN_%d_bal.pth.tar' % epoch)
+    #     continue
+
+    # save patches per epochs
+    cp_epoch_out_bal = [features_te_bal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_bal,
+                    labels_te_bal]
+    with open(os.path.join(args.exp, 'bal', 'features', 'cp_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+        pickle.dump(cp_epoch_out_bal, f)
+    with open(os.path.join(args.exp, 'bal', 'pca_features',  'pca_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+        pickle.dump(pca_features_te_bal, f)
+    return 0
+
+def produce_test_result_unbal(epoch, model, dataloader_test_unbal, dataset_test_unbal, device, args, deepcluster):
+    model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+    model.cluster_layer = None
+    model.category_layer = None
+
+    print('TEST set: Cluster the features')
+    features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal, model, len(dataset_test_unbal),
+                                                                device=device, args=args)
+    clustering_loss_te_unbal, pca_features_te_unbal = deepcluster.cluster(features_te_unbal, verbose=args.verbose)
+
+    mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+    mlp.append(nn.ReLU(inplace=True).to(device))
+    model.classifier = nn.Sequential(*mlp)
+    model.classifier.to(device)
+
+    # nan_location_unbal = np.isnan(pca_features_te_unbal)
+    # inf_location_unbal = np.isinf(pca_features_te_unbal)
+    # if (not np.allclose(nan_location_unbal, 0)) or (not np.allclose(inf_location_unbal, 0)):
+    #     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_unbal), ' Inf count: ',
+    #           np.sum(inf_location_unbal))
+    #     print('Skip epoch ', epoch)
+    #     torch.save(pca_features_te_unbal, 'te_pca_NaN_%d_unbal.pth.tar' % epoch)
+    #     torch.save(features_te_unbal, 'te_feature_NaN_%d_unbal.pth.tar' % epoch)
+    #     continue
+
+    # save patches per epochs
+    cp_epoch_out_unbal = [features_te_unbal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_unbal,
+                    labels_te_unbal]
+
+    with open(os.path.join(args.exp, 'unbal', 'features', 'cp_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+        pickle.dump(cp_epoch_out_unbal, f)
+    with open(os.path.join(args.exp, 'unbal', 'pca_features', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+        pickle.dump(pca_features_te_unbal, f)
+    return 0
+
 def main(args):
     # fix random seeds
     torch.manual_seed(args.seed)
@@ -417,6 +487,16 @@ def main(args):
     model.category_layer[0].bias.data.zero_()
     model.category_layer = model.category_layer.double()
     model.category_layer.to(device)
+
+    '''
+    ############################
+    ############################
+    # EarlyStopping (test_accuracy_bal, 100)
+    ############################
+    ############################
+    '''
+    early_stopping = EarlyStopping(model, **stopping_args)
+    stop_vars = []
 
     if args.optimizer is 'Adam':
         print('Adam optimizer: conv')
@@ -531,7 +611,7 @@ def main(args):
     MAIN TRAINING
     #######################
     #######################'''
-    for epoch in range(args.start_epoch, args.epochs):
+    for epoch in range(args.start_epoch, early_stopping.max_epochs):
         end = time.time()
         print('#####################  Start training at Epoch %d ################'% epoch)
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
@@ -693,6 +773,19 @@ def main(args):
         with open(os.path.join(args.exp, 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
 
+        if (epoch % args.save_epoch == 0):
+            out = produce_test_result_bal(epoch, model, dataloader_test_bal, dataset_test_bal, device, args, deepcluster)
+            out = produce_test_result_unbal(epoch, model, dataloader_test_unbal, dataset_test_unbal, device, args, deepcluster)
+
+        '''EarlyStopping'''
+        if early_stopping.check(loss_collect[7], epoch):
+            break
+
+    out = produce_test_result_bal(epoch, model, dataloader_test_bal, dataset_test_bal, device, args, deepcluster)
+    out = produce_test_result_unbal(epoch, model, dataloader_test_unbal, dataset_test_unbal, device, args,
+                                        deepcluster)
+
+
         '''
         ############################
         ############################
@@ -700,85 +793,75 @@ def main(args):
         ############################
         ############################
         '''
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-        model.cluster_layer = None
-        model.category_layer = None
 
-        print('TEST set: Cluster the features')
-        features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model, len(dataset_test_bal),
-                                                                    device=device, args=args)
-        clustering_loss_te_bal, pca_features_te_bal = deepcluster.cluster(features_te_bal, verbose=args.verbose)
+def produce_test_result_bal(epoch, model, dataloader_test_bal, dataset_test_bal, device, args, deepcluster):
+    model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+    model.cluster_layer = None
+    model.category_layer = None
 
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-        mlp.append(nn.ReLU(inplace=True).to(device))
-        model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device)
+    print('TEST set: Cluster the features')
+    features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model, len(dataset_test_bal),
+                                                                device=device, args=args)
+    clustering_loss_te_bal, pca_features_te_bal = deepcluster.cluster(features_te_bal, verbose=args.verbose)
 
-        nan_location_bal = np.isnan(pca_features_te_bal)
-        inf_location_bal = np.isinf(pca_features_te_bal)
-        if (not np.allclose(nan_location_bal, 0)) or (not np.allclose(inf_location_bal, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_bal), ' Inf count: ',
-                  np.sum(inf_location_bal))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features_te_bal, 'te_pca_NaN_%d_bal.pth.tar' % epoch)
-            torch.save(features_te_bal, 'te_feature_NaN_%d_bal.pth.tar' % epoch)
-            continue
+    mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+    mlp.append(nn.ReLU(inplace=True).to(device))
+    model.classifier = nn.Sequential(*mlp)
+    model.classifier.to(device)
 
-        # save patches per epochs
-        cp_epoch_out_bal = [features_te_bal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_bal,
-                        labels_te_bal]
+    # nan_location_bal = np.isnan(pca_features_te_bal)
+    # inf_location_bal = np.isinf(pca_features_te_bal)
+    # if (not np.allclose(nan_location_bal, 0)) or (not np.allclose(inf_location_bal, 0)):
+    #     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_bal), ' Inf count: ',
+    #           np.sum(inf_location_bal))
+    #     print('Skip epoch ', epoch)
+    #     torch.save(pca_features_te_bal, 'te_pca_NaN_%d_bal.pth.tar' % epoch)
+    #     torch.save(features_te_bal, 'te_feature_NaN_%d_bal.pth.tar' % epoch)
+    #     continue
 
+    # save patches per epochs
+    cp_epoch_out_bal = [features_te_bal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_bal,
+                    labels_te_bal]
+    with open(os.path.join(args.exp, 'bal', 'features', 'cp_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+        pickle.dump(cp_epoch_out_bal, f)
+    with open(os.path.join(args.exp, 'bal', 'pca_features',  'pca_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+        pickle.dump(pca_features_te_bal, f)
+    return 0
 
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'bal', 'features', 'cp_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out_bal, f)
-            with open(os.path.join(args.exp, 'bal', 'pca_features',  'pca_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features_te_bal, f)
+def produce_test_result_unbal(epoch, model, dataloader_test_unbal, dataset_test_unbal, device, args, deepcluster):
+    model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+    model.cluster_layer = None
+    model.category_layer = None
 
+    print('TEST set: Cluster the features')
+    features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal, model, len(dataset_test_unbal),
+                                                                device=device, args=args)
+    clustering_loss_te_unbal, pca_features_te_unbal = deepcluster.cluster(features_te_unbal, verbose=args.verbose)
 
-        '''
-        ############################
-        ############################
-        # PSEUDO-LABEL GEN: Test set (Unbalanced UA)
-        ############################
-        ############################
-        '''
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-        model.cluster_layer = None
-        model.category_layer = None
+    mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+    mlp.append(nn.ReLU(inplace=True).to(device))
+    model.classifier = nn.Sequential(*mlp)
+    model.classifier.to(device)
 
-        print('TEST set: Cluster the features')
-        features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal, model, len(dataset_test_unbal),
-                                                                    device=device, args=args)
-        clustering_loss_te_unbal, pca_features_te_unbal = deepcluster.cluster(features_te_unbal, verbose=args.verbose)
+    # nan_location_unbal = np.isnan(pca_features_te_unbal)
+    # inf_location_unbal = np.isinf(pca_features_te_unbal)
+    # if (not np.allclose(nan_location_unbal, 0)) or (not np.allclose(inf_location_unbal, 0)):
+    #     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_unbal), ' Inf count: ',
+    #           np.sum(inf_location_unbal))
+    #     print('Skip epoch ', epoch)
+    #     torch.save(pca_features_te_unbal, 'te_pca_NaN_%d_unbal.pth.tar' % epoch)
+    #     torch.save(features_te_unbal, 'te_feature_NaN_%d_unbal.pth.tar' % epoch)
+    #     continue
 
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-        mlp.append(nn.ReLU(inplace=True).to(device))
-        model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device)
+    # save patches per epochs
+    cp_epoch_out_unbal = [features_te_unbal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_unbal,
+                    labels_te_unbal]
 
-        nan_location_unbal = np.isnan(pca_features_te_unbal)
-        inf_location_unbal = np.isinf(pca_features_te_unbal)
-        if (not np.allclose(nan_location_unbal, 0)) or (not np.allclose(inf_location_unbal, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_unbal), ' Inf count: ',
-                  np.sum(inf_location_unbal))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features_te_unbal, 'te_pca_NaN_%d_unbal.pth.tar' % epoch)
-            torch.save(features_te_unbal, 'te_feature_NaN_%d_unbal.pth.tar' % epoch)
-            continue
-
-        # save patches per epochs
-        cp_epoch_out_unbal = [features_te_unbal, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te_unbal,
-                        labels_te_unbal]
-
-
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'unbal', 'features', 'cp_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out_unbal, f)
-            with open(os.path.join(args.exp, 'unbal', 'pca_features', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features_te_unbal, f)
-
-
+    with open(os.path.join(args.exp, 'unbal', 'features', 'cp_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+        pickle.dump(cp_epoch_out_unbal, f)
+    with open(os.path.join(args.exp, 'unbal', 'pca_features', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+        pickle.dump(pca_features_te_unbal, f)
+    return 0
 
 if __name__ == '__main__':
     args = parse_args()
