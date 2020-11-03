@@ -107,7 +107,7 @@ def parse_args():
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--patience', type=int, default=2, help='Earlystopping patience')
+    parser.add_argument('--patience', type=int, default=10, help='Earlystopping patience')
     parser.add_argument('--semi_ratio', type=float, default=1, help='ratio of the labeled samples')
     return parser.parse_args(args=[])
 
@@ -232,6 +232,7 @@ def test(dataloader, model, crit, device, args):
 
 def sampling_echograms_full(args):
     path_to_echograms = paths.path_to_echograms()
+    # path_to_echograms = '/Users/changkyu/Documents/GitHub/save_pts/sampled'
     samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
     supervised_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_supervised = []
@@ -251,59 +252,18 @@ def sampling_echograms_full(args):
 
 def sampling_echograms_for_s3vm(args):
     path_to_echograms = paths.path_to_echograms()
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
     samplers_bg = torch.load(os.path.join(path_to_echograms, 'train_bg_32766.pt'))
     list_length = len(samplers_bg) // args.nmb_category
     samplers_bg = [samplers_bg[i*list_length: (i+1)*list_length] for i in range(args.nmb_category)]
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
 
-    dataset_train_full = DatasetImg(
-        samplers_train,
-        args.sampler_probs,
-        augmentation_function=augmentation,
-        data_transform_function=data_transform)
-
     dataset_bg_full = DatasetImg(
         samplers_bg,
         args.sampler_probs,
         augmentation_function=augmentation,
         data_transform_function=data_transform)
-
-    return dataset_train_full, dataset_bg_full
-
-# def feature_save(train_full, bg_full):
-#     tr_ratio = [0.97808653, 0.01301181, 0.00890166]
-#     semi_ratios = [0.1, 0.05, 0.025]
-#
-#     for semi_ratio in semi_ratios:
-#         percentage = str(int(semi_ratio * 100)).zfill(2)
-#         supervised_count = int(len(train_full[0]) * semi_ratio)
-#
-#     total_unsupervised_count = int((len(samplers_train[0]) - supervised_count) * args.nmb_category)
-#
-#     unlab_size = [int(ratio * total_unsupervised_count) for ratio in tr_ratio]
-#     if np.sum(unlab_size) != total_unsupervised_count:
-#         unlab_size[0] += total_unsupervised_count - np.sum(unlab_size)
-#
-#     samplers_supervised = []
-#     samplers_unsupervised = []
-#     for samplers in samplers_train:
-#         samplers_supervised.append(samplers[:supervised_count])
-#         samplers_unsupervised.append(samplers[supervised_count:])
-#     samplers_unsupervised[0].extend(samplers_bg)
-#
-#     samplers_unbal_unlab = []
-#     for sampler, size in zip(samplers_unsupervised, unlab_size):
-#         samplers_unbal_unlab.append(sampler[:size])
-#
-#     samplers_semi_unbal_unlab_long = []
-#     for sampler_unb_unl in samplers_unbal_unlab:
-#         samplers_semi_unbal_unlab_long.extend(sampler_unb_unl)
-#
-#     num_classes = len(samplers_train)
-#     list_length = len(samplers_semi_unbal_unlab_long) // num_classes
-#     samplers_unanno = [samplers_semi_unbal_unlab_long[i*list_length: (i+1)*list_length] for i in range(num_classes)]
+    return dataset_bg_full
 
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
@@ -326,306 +286,309 @@ def sampling_echograms_test(args):
     return dataset_test_bal, dataset_test_unbal
 
 def main(args):
-    # fix random seeds
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
-    np.random.seed(args.seed)
-    device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
-    print(device)
-    criterion = nn.CrossEntropyLoss()
-    cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
+    for args.semi_ratio in [0.1, 0.05, 0.025]:
+        percentage = str(int(args.semi_ratio * 100)).zfill(2)
+        print(percentage)
+        torch.manual_seed(args.seed)
+        torch.cuda.manual_seed_all(args.seed)
+        np.random.seed(args.seed)
+        device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
+        print(device)
+        criterion = nn.CrossEntropyLoss()
+        cluster_log = Logger(os.path.join(args.exp, 'clusters_%s.pickle' % percentage))
 
-    # CNN
-    if args.verbose:
-        print('Architecture: {}'.format(args.arch))
+        # CNN
+        if args.verbose:
+            print('Architecture: {}'.format(args.arch))
 
-    '''
-    ##########################################
-    ##########################################
-    # Model definition
-    ##########################################
-    ##########################################'''
-    model = models.__dict__[args.arch](bn=True, num_cluster=args.nmb_cluster, num_category=args.nmb_category)
-    fd = int(model.cluster_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
-    model.cluster_layer = None
-    model.category_layer = None
-    model.features = torch.nn.DataParallel(model.features)
-    model = model.double()
-    model.to(device)
-    cudnn.benchmark = True
-
-    if args.optimizer is 'Adam':
-        print('Adam optimizer: conv')
-        optimizer_body = torch.optim.Adam(
-            filter(lambda x: x.requires_grad, model.parameters()),
-            lr=args.lr_Adam,
-            betas=(0.9, 0.999),
-            weight_decay=10 ** args.wd,
-        )
-    else:
-        print('SGD optimizer: conv')
-        optimizer_body = torch.optim.SGD(
-            filter(lambda x: x.requires_grad, model.parameters()),
-            lr=args.lr_SGD,
-            momentum=args.momentum,
-            weight_decay=10 ** args.wd,
-        )
-    '''
-    ###############
-    ###############
-    category_layer
-    ###############
-    ###############
-    '''
-    model.category_layer = nn.Sequential(
-        nn.Linear(fd, args.nmb_category),
-        nn.Softmax(dim=1),
-    )
-    model.category_layer[0].weight.data.normal_(0, 0.01)
-    model.category_layer[0].bias.data.zero_()
-    model.category_layer = model.category_layer.double()
-    model.category_layer.to(device)
-
-    if args.optimizer is 'Adam':
-        print('Adam optimizer: conv')
-        optimizer_category = torch.optim.Adam(
-            filter(lambda x: x.requires_grad, model.category_layer.parameters()),
-            lr=args.lr_Adam,
-            betas=(0.9, 0.999),
-            weight_decay=10 ** args.wd,
-        )
-    else:
-        print('SGD optimizer: conv')
-        optimizer_category = torch.optim.SGD(
-            filter(lambda x: x.requires_grad, model.category_layer.parameters()),
-            lr=args.lr_SGD,
-            momentum=args.momentum,
-            weight_decay=10 ** args.wd,
-        )
-    '''
-    ########################################
-    ########################################
-    Create echogram sampling index
-    ########################################
-    ########################################'''
-
-    print('Sample echograms.')
-    dataset_semi = sampling_echograms_full(args)
-
-
-    dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-    dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
-    dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-    dataset_bg_full = sampling_echograms_for_s3vm(args)
-    dataloader_bg = torch.utils.data.DataLoader(dataset_bg_full,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-    # optionally resume from a checkpoint
-    if args.resume:
-        if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
-            checkpoint = torch.load(args.resume)
-            args.start_epoch = checkpoint['epoch']
-            # remove top located layer parameters from checkpoint
-            copy_checkpoint_state_dict = checkpoint['state_dict'].copy()
-            for key in list(copy_checkpoint_state_dict):
-                if 'cluster_layer' in key:
-                    del copy_checkpoint_state_dict[key]
-                # if 'category_layer' in key:
-                #     del copy_checkpoint_state_dict[key]
-            checkpoint['state_dict'] = copy_checkpoint_state_dict
-            model.load_state_dict(checkpoint['state_dict'])
-            optimizer_body.load_state_dict(checkpoint['optimizer_body'])
-            optimizer_category.load_state_dict(checkpoint['optimizer_category'])
-            category_save = os.path.join(args.exp,  'category_layer.pth.tar')
-            if os.path.isfile(category_save):
-                category_layer_param = torch.load(category_save)
-                model.category_layer.load_state_dict(category_layer_param)
-            print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(args.resume, checkpoint['epoch']))
-        else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
-
-    # creating checkpoint repo
-    exp_check = os.path.join(args.exp, 'checkpoints')
-    if not os.path.isdir(exp_check):
-        os.makedirs(exp_check)
-
-    exp_bal = os.path.join(args.exp, 'bal')
-    exp_unbal = os.path.join(args.exp, 'unbal')
-    for dir_bal in [exp_bal, exp_unbal]:
-        for dir_2 in ['features', 'pca_features', 'pred']:
-            dir_to_make = os.path.join(dir_bal, dir_2)
-            if not os.path.isdir(dir_to_make):
-                os.makedirs(dir_to_make)
-
-    """
-    ############################
-    ############################
-    # PRETRAIN
-    ############################
-    ############################
-    """
-
-    if args.start_epoch < args.pretrain_epoch:
-        if os.path.isfile(os.path.join(args.exp, 'pretrain_loss_collect.pickle')):
-            with open(os.path.join(args.exp, 'pretrain_loss_collect.pickle'), "rb") as f:
-                pretrain_loss_collect = pickle.load(f)
-        else:
-            pretrain_loss_collect = [[], [], [], [], [], [], []]
-        print('Start pretraining with %d percent of the dataset from epoch %d/(%d)'
-              % (int(args.semi_ratio * 100), args.start_epoch, args.pretrain_epoch))
+        '''
+        ##########################################
+        ##########################################
+        # Model definition
+        ##########################################
+        ##########################################'''
+        model = models.__dict__[args.arch](bn=True, num_cluster=args.nmb_cluster, num_category=args.nmb_category)
+        fd = int(model.cluster_layer[0].weight.size()[1])  # due to transpose, fd is input dim of W (in dim, out dim)
         model.cluster_layer = None
+        model.category_layer = None
+        model.features = torch.nn.DataParallel(model.features)
+        model = model.double()
+        model.to(device)
+        cudnn.benchmark = True
 
-        early_stopping = EarlyStopping(patience=args.patience, verbose=True)
-        for epoch in range(args.start_epoch, args.pretrain_epoch):
-            with torch.autograd.set_detect_anomaly(True):
-                pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
-                                                          model=model,
-                                                          crit=criterion,
-                                                          opt_body=optimizer_body,
-                                                          opt_category=optimizer_category,
-                                                          epoch=epoch, device=device, args=args)
+        if args.optimizer is 'Adam':
+            print('Adam optimizer: conv')
+            optimizer_body = torch.optim.Adam(
+                filter(lambda x: x.requires_grad, model.parameters()),
+                lr=args.lr_Adam,
+                betas=(0.9, 0.999),
+                weight_decay=10 ** args.wd,
+            )
+        else:
+            print('SGD optimizer: conv')
+            optimizer_body = torch.optim.SGD(
+                filter(lambda x: x.requires_grad, model.parameters()),
+                lr=args.lr_SGD,
+                momentum=args.momentum,
+                weight_decay=10 ** args.wd,
+            )
+        '''
+        ###############
+        ###############
+        category_layer
+        ###############
+        ###############
+        '''
+        model.category_layer = nn.Sequential(
+            nn.Linear(fd, args.nmb_category),
+            nn.Softmax(dim=1),
+        )
+        model.category_layer[0].weight.data.normal_(0, 0.01)
+        model.category_layer[0].bias.data.zero_()
+        model.category_layer = model.category_layer.double()
+        model.category_layer.to(device)
 
-            '''
-            ##############
-            ##############
-            # TEST phase
-            ##############
-            ##############
-            '''
-            test_loss_bal, test_accuracy_bal, test_pred_bal, test_label_bal = test(dataloader_test_bal, model,
-                                                                                   criterion, device, args)
-            test_loss_unbal, test_accuracy_unbal, test_pred_unbal, test_label_unbal = test(dataloader_test_unbal, model,
-                                                                                           criterion, device, args)
+        if args.optimizer is 'Adam':
+            print('Adam optimizer: conv')
+            optimizer_category = torch.optim.Adam(
+                filter(lambda x: x.requires_grad, model.category_layer.parameters()),
+                lr=args.lr_Adam,
+                betas=(0.9, 0.999),
+                weight_decay=10 ** args.wd,
+            )
+        else:
+            print('SGD optimizer: conv')
+            optimizer_category = torch.optim.SGD(
+                filter(lambda x: x.requires_grad, model.category_layer.parameters()),
+                lr=args.lr_SGD,
+                momentum=args.momentum,
+                weight_decay=10 ** args.wd,
+            )
+        '''
+        ########################################
+        ########################################
+        Create echogram sampling index
+        ########################################
+        ########################################'''
 
-            '''Save prediction of the test set'''
-            if (epoch % args.save_epoch == 0):
-                with open(os.path.join(args.exp, 'bal', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
-                    pickle.dump([test_pred_bal, test_label_bal], f)
-                with open(os.path.join(args.exp, 'unbal', 'pred', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
-                    pickle.dump([test_pred_unbal, test_label_unbal], f)
+        print('Sample echograms.')
+        dataset_semi = sampling_echograms_full(args)
 
-            # print log
-            if args.verbose:
-                print('###### Epoch [{0}] ###### \n'
-                      'PRETRAIN tr_loss: {1:.3f} \n'
-                      'TEST loss_bal: {2:.3f} \n'
-                      'TEST loss_unbal: {3:.3f} \n'
-                      'PRETRAIN tr_accu: {4:.3f} \n'
-                      'TEST accu bal: {5:.3f} \n'
-                      'TEST accu unbal: {6:.3f} \n'.format(epoch, pre_loss, test_loss_bal, test_loss_unbal, pre_accuracy, test_accuracy_bal, test_accuracy_unbal))
-            pretrain_loss_collect[0].append(epoch)
-            pretrain_loss_collect[1].append(pre_loss)
-            pretrain_loss_collect[2].append(test_loss_bal)
-            pretrain_loss_collect[3].append(test_loss_unbal)
-            pretrain_loss_collect[4].append(pre_accuracy)
-            pretrain_loss_collect[5].append(test_accuracy_bal)
-            pretrain_loss_collect[6].append(test_accuracy_unbal)
 
-            torch.save({'epoch': epoch + 1,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'optimizer_body': optimizer_body.state_dict(),
-                        'optimizer_category': optimizer_category.state_dict(),
-                        },
-                       os.path.join(args.exp, 'checkpoint.pth.tar'))
-            torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
+        dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
+                                                    shuffle=False,
+                                                    batch_size=args.batch,
+                                                    num_workers=args.workers,
+                                                    drop_last=False,
+                                                    pin_memory=True)
 
-            with open(os.path.join(args.exp, 'pretrain_loss_collect.pickle'), "wb") as f:
-                pickle.dump(pretrain_loss_collect, f)
+        dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
+        dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
+                                                    shuffle=False,
+                                                    batch_size=args.batch,
+                                                    num_workers=args.workers,
+                                                    drop_last=False,
+                                                    pin_memory=True)
 
-            if (epoch+1) % args.checkpoints == 0:
-                path = os.path.join(
-                    args.exp,
-                    'checkpoints',
-                    'checkpoint_' + str(epoch) + '.pth.tar',
-                )
-                if args.verbose:
-                    print('Save checkpoint at: {0}'.format(path))
-                torch.save({'epoch': epoch + 1,
-                            'arch': args.arch,
-                            'state_dict': model.state_dict(),
-                            'optimizer_body': optimizer_body.state_dict(),
-                            'optimizer_category': optimizer_category.state_dict(),
-                            }, path)
+        dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
+                                                    shuffle=False,
+                                                    batch_size=args.batch,
+                                                    num_workers=args.workers,
+                                                    drop_last=False,
+                                                    pin_memory=True)
 
-            early_stopping(test_accuracy_bal, epoch, args, model, optimizer_body, optimizer_category, args.early_path)
-            if early_stopping.early_stop:
-                print('Early stopping')
-                checkpoint = torch.load(args.early_path)
+        dataset_bg_full = sampling_echograms_for_s3vm(args)
+        dataloader_bg = torch.utils.data.DataLoader(dataset_bg_full,
+                                                    shuffle=False,
+                                                    batch_size=args.batch,
+                                                    num_workers=args.workers,
+                                                    drop_last=False,
+                                                    pin_memory=True)
+
+        # optionally resume from a checkpoint
+        if args.resume:
+            args.resume = os.path.join(args.exp, 'checkpoint_r%s.pth.tar' % percentage)
+            if os.path.isfile(args.resume):
+                print("=> loading checkpoint '{}'".format(args.resume))
+                checkpoint = torch.load(args.resume)
                 args.start_epoch = checkpoint['epoch']
                 # remove top located layer parameters from checkpoint
                 copy_checkpoint_state_dict = checkpoint['state_dict'].copy()
                 for key in list(copy_checkpoint_state_dict):
                     if 'cluster_layer' in key:
                         del copy_checkpoint_state_dict[key]
+                    # if 'category_layer' in key:
+                    #     del copy_checkpoint_state_dict[key]
                 checkpoint['state_dict'] = copy_checkpoint_state_dict
                 model.load_state_dict(checkpoint['state_dict'])
                 optimizer_body.load_state_dict(checkpoint['optimizer_body'])
                 optimizer_category.load_state_dict(checkpoint['optimizer_category'])
+                category_save = os.path.join(args.exp,  'category_layer.pth.tar')
+                if os.path.isfile(category_save):
+                    category_layer_param = torch.load(category_save)
+                    model.category_layer.load_state_dict(category_layer_param)
                 print("=> loaded checkpoint '{}' (epoch {})"
-                      .format(args.early_path, checkpoint['epoch']))
+                      .format(args.resume, checkpoint['epoch']))
+            else:
+                print("=> no checkpoint found at '{}'".format(args.resume))
 
-                model.classifier = nn.Sequential(*list(model.classifier.children())[:-1])  # remove ReLU at classifier [:-1]
-                model.cluster_layer = None
-                model.category_layer = None
-                features_train_anno, input_tensors_train_anno, labels_train_anno = compute_features(dataloader_semi,
-                                                                                                    model,
-                                                                                                    len(dataloader_semi),
-                                                                                                    device=device,
-                                                                                                    args=args)
-                train_anno = [features_train_anno, labels_train_anno]
-                with open(os.path.join(args.exp, 'train_anno_full.pickle'), "wb") as f:
-                    pickle.dump(train_anno, f)
+        # creating checkpoint repo
+        exp_check = os.path.join(args.exp, 'checkpoints')
+        if not os.path.isdir(exp_check):
+            os.makedirs(exp_check)
 
-                features_train_unanno, input_tensors_train_unanno, labels_train_unanno = compute_features(
-                    dataloader_bg, model, len(dataloader_bg), device=device, args=args)
-                train_unanno = [features_train_unanno, labels_train_unanno]
-                with open(os.path.join(args.exp, 'train_bg.pickle'), "wb") as f:
-                    pickle.dump(train_unanno, f)
+        # exp_bal = os.path.join(args.exp, 'bal')
+        # exp_unbal = os.path.join(args.exp, 'unbal')
+        # for dir_bal in [exp_bal, exp_unbal]:
+        #     for dir_2 in ['features', 'pca_features', 'pred']:
+        #         dir_to_make = os.path.join(dir_bal, dir_2)
+        #         if not os.path.isdir(dir_to_make):
+        #             os.makedirs(dir_to_make)
+
+        """
+        ############################
+        ############################
+        # PRETRAIN
+        ############################
+        ############################
+        """
+
+        if args.start_epoch < args.pretrain_epoch:
+            if os.path.isfile(os.path.join(args.exp, 'pretrain_loss_collect_%s.pickle' % percentage)):
+                with open(os.path.join(args.exp, 'pretrain_loss_collect_%s.pickle'% percentage), "rb") as f:
+                    pretrain_loss_collect = pickle.load(f)
+            else:
+                pretrain_loss_collect = [[], [], [], [], [], [], []]
+            print('Start pretraining with %d percent of the dataset from epoch %d/(%d)'
+                  % (int(args.semi_ratio * 100), args.start_epoch, args.pretrain_epoch))
+            model.cluster_layer = None
+
+            early_stopping = EarlyStopping(patience=args.patience, verbose=True)
+            for epoch in range(args.start_epoch, args.pretrain_epoch):
+                with torch.autograd.set_detect_anomaly(True):
+                    pre_loss, pre_accuracy = supervised_train(loader=dataloader_semi,
+                                                              model=model,
+                                                              crit=criterion,
+                                                              opt_body=optimizer_body,
+                                                              opt_category=optimizer_category,
+                                                              epoch=epoch, device=device, args=args)
+
                 '''
-                TESTSET
+                ##############
+                ##############
+                # TEST phase
+                ##############
+                ##############
                 '''
-                print('TEST set: Cluster the features')
-                features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model,
-                                                                                        len(dataset_test_bal),
-                                                                                        device=device, args=args)
-                cp_epoch_out_bal = [features_te_bal, labels_te_bal]
-                with open(os.path.join(args.exp,  'te_bal.pickle' % epoch), "wb") as f:
-                    pickle.dump(cp_epoch_out_bal, f)
+                test_loss_bal, test_accuracy_bal, test_pred_bal, test_label_bal = test(dataloader_test_bal, model,
+                                                                                       criterion, device, args)
+                test_loss_unbal, test_accuracy_unbal, test_pred_unbal, test_label_unbal = test(dataloader_test_unbal, model,
+                                                                                               criterion, device, args)
 
-                features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal,
-                                                                                              model,
-                                                                                              len(dataset_test_unbal),
-                                                                                              device=device, args=args)
-                cp_epoch_out_unbal = [features_te_unbal, labels_te_unbal]
-                with open(os.path.join(args.exp, 'te_unbal.pickle' % epoch), "wb") as f:
-                    pickle.dump(cp_epoch_out_unbal, f)
-                break
+                # '''Save prediction of the test set'''
+                # if (epoch % args.save_epoch == 0):
+                #     with open(os.path.join(args.exp, 'bal', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+                #         pickle.dump([test_pred_bal, test_label_bal], f)
+                #     with open(os.path.join(args.exp, 'unbal', 'pred', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+                #         pickle.dump([test_pred_unbal, test_label_unbal], f)
+
+                # print log
+                if args.verbose:
+                    print('###### Epoch [{0}] ###### \n'
+                          'PRETRAIN tr_loss: {1:.3f} \n'
+                          'TEST loss_bal: {2:.3f} \n'
+                          'TEST loss_unbal: {3:.3f} \n'
+                          'PRETRAIN tr_accu: {4:.3f} \n'
+                          'TEST accu bal: {5:.3f} \n'
+                          'TEST accu unbal: {6:.3f} \n'.format(epoch, pre_loss, test_loss_bal, test_loss_unbal, pre_accuracy, test_accuracy_bal, test_accuracy_unbal))
+                pretrain_loss_collect[0].append(epoch)
+                pretrain_loss_collect[1].append(pre_loss)
+                pretrain_loss_collect[2].append(test_loss_bal)
+                pretrain_loss_collect[3].append(test_loss_unbal)
+                pretrain_loss_collect[4].append(pre_accuracy)
+                pretrain_loss_collect[5].append(test_accuracy_bal)
+                pretrain_loss_collect[6].append(test_accuracy_unbal)
+
+                torch.save({'epoch': epoch + 1,
+                            'arch': args.arch,
+                            'state_dict': model.state_dict(),
+                            'optimizer_body': optimizer_body.state_dict(),
+                            'optimizer_category': optimizer_category.state_dict(),
+                            },
+                           os.path.join(args.exp, 'checkpoint_r%s.pth.tar' % percentage))
+                torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer_r%s.pth.tar' % percentage))
+
+                with open(os.path.join(args.exp, 'pretrain_loss_collect_%s.pickle' % percentage), "wb") as f:
+                    pickle.dump(pretrain_loss_collect, f)
+
+                if (epoch+1) % args.checkpoints == 0:
+                    path = os.path.join(
+                        args.exp,
+                        'checkpoints',
+                        'checkpoint_' + 'r%s_'% percentage + str(epoch) + '.pth.tar',
+                    )
+                    if args.verbose:
+                        print('Save checkpoint at: {0}'.format(path))
+                    torch.save({'epoch': epoch + 1,
+                                'arch': args.arch,
+                                'state_dict': model.state_dict(),
+                                'optimizer_body': optimizer_body.state_dict(),
+                                'optimizer_category': optimizer_category.state_dict(),
+                                }, path)
+
+                early_stopping(test_accuracy_bal, epoch, args, model, optimizer_body, optimizer_category, args.early_path)
+                if early_stopping.early_stop:
+                    print('Early stopping')
+                    checkpoint = torch.load(args.early_path)
+                    args.start_epoch = checkpoint['epoch']
+                    # remove top located layer parameters from checkpoint
+                    copy_checkpoint_state_dict = checkpoint['state_dict'].copy()
+                    for key in list(copy_checkpoint_state_dict):
+                        if 'cluster_layer' in key:
+                            del copy_checkpoint_state_dict[key]
+                    checkpoint['state_dict'] = copy_checkpoint_state_dict
+                    model.load_state_dict(checkpoint['state_dict'])
+                    optimizer_body.load_state_dict(checkpoint['optimizer_body'])
+                    optimizer_category.load_state_dict(checkpoint['optimizer_category'])
+                    print("=> loaded checkpoint '{}' (epoch {})"
+                          .format(args.early_path, checkpoint['epoch']))
+
+                    model.classifier = nn.Sequential(*list(model.classifier.children())[:-1])  # remove ReLU at classifier [:-1]
+                    model.cluster_layer = None
+                    model.category_layer = None
+                    features_train_anno, input_tensors_train_anno, labels_train_anno = compute_features(dataloader_semi,
+                                                                                                        model,
+                                                                                                        len(dataset_semi),
+                                                                                                        device=device,
+                                                                                                        args=args)
+                    train_anno = [features_train_anno, labels_train_anno]
+                    with open(os.path.join(args.exp, 'train_anno_full_%s.pickle' % percentage), "wb") as f:
+                        pickle.dump(train_anno, f)
+
+                    features_train_unanno, input_tensors_train_unanno, labels_train_unanno = compute_features(
+                        dataloader_bg, model, len(dataset_bg_full), device=device, args=args)
+                    train_unanno = [features_train_unanno, labels_train_unanno]
+                    with open(os.path.join(args.exp, 'train_bg_%s.pickle' % percentage), "wb") as f:
+                        pickle.dump(train_unanno, f)
+                    '''
+                    TESTSET
+                    '''
+                    print('TEST set: Cluster the features')
+                    features_te_bal, input_tensors_te_bal, labels_te_bal = compute_features(dataloader_test_bal, model,
+                                                                                            len(dataset_test_bal),
+                                                                                            device=device, args=args)
+                    cp_epoch_out_bal = [features_te_bal, labels_te_bal]
+                    with open(os.path.join(args.exp,  'te_bal_%s.pickle' % percentage), "wb") as f:
+                        pickle.dump(cp_epoch_out_bal, f)
+
+                    features_te_unbal, input_tensors_te_unbal, labels_te_unbal = compute_features(dataloader_test_unbal,
+                                                                                                  model,
+                                                                                                  len(dataset_test_unbal),
+                                                                                                  device=device, args=args)
+                    cp_epoch_out_unbal = [features_te_unbal, labels_te_unbal]
+                    with open(os.path.join(args.exp, 'te_unbal_%s.pickle' % percentage), "wb") as f:
+                        pickle.dump(cp_epoch_out_unbal, f)
+                    break
 
 if __name__ == '__main__':
     args = parse_args()
