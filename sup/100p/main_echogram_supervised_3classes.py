@@ -101,13 +101,13 @@ def parse_args():
                         default=os.path.join(current_dir, 'checkpoint.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--early_path',
-                        default= os.path.join(current_dir, 'checkpoints', 'checkpoint_earlystop.pth.tar'), type=str, metavar='PATH',
+                        default=os.path.join(current_dir, 'checkpoints', 'checkpoint_earlystop.pth.tar'), type=str, metavar='PATH',
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--patience', type=int, default=10, help='Earlystopping patience')
+    parser.add_argument('--patience', type=int, default=1, help='Earlystopping patience')
     parser.add_argument('--semi_ratio', type=float, default=1, help='ratio of the labeled samples')
     return parser.parse_args(args=[])
 
@@ -236,8 +236,10 @@ def sampling_echograms_full(args):
     samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
     supervised_count = int(len(samplers_train[0]) * args.semi_ratio)
     samplers_supervised = []
+    samplers_tr_rest = []
     for samplers in samplers_train:
         samplers_supervised.append(samplers[:supervised_count])
+        samplers_tr_rest.append(samplers[supervised_count:])
 
     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
@@ -248,7 +250,12 @@ def sampling_echograms_full(args):
         augmentation_function=augmentation,
         data_transform_function=data_transform)
 
-    return dataset_semi
+    dataset_tr_rest = DatasetImg(
+        samplers_tr_rest,
+        args.sampler_probs,
+        augmentation_function=augmentation,
+        data_transform_function=data_transform)
+    return dataset_semi, dataset_tr_rest
 
 def sampling_echograms_for_s3vm(args):
     path_to_echograms = paths.path_to_echograms()
@@ -372,7 +379,7 @@ def main(args):
         ########################################'''
 
         print('Sample echograms.')
-        dataset_semi = sampling_echograms_full(args)
+        dataset_semi, dataset_tr_rest = sampling_echograms_full(args)
 
 
         dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
@@ -381,6 +388,14 @@ def main(args):
                                                     num_workers=args.workers,
                                                     drop_last=False,
                                                     pin_memory=True)
+
+        dataloader_tr_rest = torch.utils.data.DataLoader(dataset_tr_rest,
+                                                    shuffle=False,
+                                                    batch_size=args.batch,
+                                                    num_workers=args.workers,
+                                                    drop_last=False,
+                                                    pin_memory=True)
+
 
         dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
         dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
@@ -566,11 +581,20 @@ def main(args):
                     with open(os.path.join(args.exp, 'train_anno_full_%s.pickle' % percentage), "wb") as f:
                         pickle.dump(train_anno, f)
 
-                    features_train_unanno, input_tensors_train_unanno, labels_train_unanno = compute_features(
-                        dataloader_bg, model, len(dataset_bg_full), device=device, args=args)
+                    features_train_unanno, input_tensors_train_unanno, labels_train_unanno = compute_features(dataloader_tr_rest,
+                                                                                                        model,
+                                                                                                        len(dataset_tr_rest),
+                                                                                                        device=device,
+                                                                                                        args=args)
                     train_unanno = [features_train_unanno, labels_train_unanno]
-                    with open(os.path.join(args.exp, 'train_bg_%s.pickle' % percentage), "wb") as f:
+                    with open(os.path.join(args.exp, 'train_unanno_full_%s.pickle' % percentage), "wb") as f:
                         pickle.dump(train_unanno, f)
+
+                    features_train_bg, input_tensors_train_bg, labels_train_bg = compute_features(
+                        dataloader_bg, model, len(dataset_bg_full), device=device, args=args)
+                    train_bg = [features_train_bg, labels_train_bg]
+                    with open(os.path.join(args.exp, 'train_bg_%s.pickle' % percentage), "wb") as f:
+                        pickle.dump(train_bg, f)
                     '''
                     TESTSET
                     '''
