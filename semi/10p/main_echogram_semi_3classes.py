@@ -3,7 +3,7 @@
 #
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
-#
+
 import argparse
 import os
 import pickle
@@ -23,7 +23,6 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
-
 current_dir = os.getcwd()
 
 if current_dir[-1] is not 'p':
@@ -39,17 +38,21 @@ from util import AverageMeter, Logger, UnifLabelSampler
 from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
-from batch.dataset import DatasetImg
-from batch.dataset import DatasetImgUnbal
+# from batch.dataset import DatasetImg
+# from batch.dataset import DatasetImgUnbal
+from batch.dataset import DatasetImg_for_comparisonP2
+
 #############
 from batch.dataset import DatasetGrid
 from batch.samplers.sampler_test import SampleFull
 from batch.samplers.get_all_patches import GetAllPatches
 from data.echogram import Echogram
 #############
-from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_img
-from batch.data_transform_functions.db_with_limits import db_with_limits_img
+from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_for_comparisonP2
+from batch.data_transform_functions.db_with_limits import db_with_limits_for_comparisonP2
 from batch.combine_functions import CombineFunctions
+from batch.label_transform_functions.index_0_1_27_for_comparisonP2 import index_0_1_27_for_comparisonP2
+from batch.label_transform_functions.relabel_with_threshold_morph_close_for_comparisonP2 import relabel_with_threshold_morph_close_for_comparisonP2
 from classifier_linearSVC import SimpleClassifier
 
 def parse_args():
@@ -342,6 +345,25 @@ def sampling_echograms_full(args):
 
     return dataset_cp, dataset_semi
 
+
+def sampling_echograms_full_for_comparison(args):
+    path_to_echograms = paths.path_to_echograms()
+
+    data = torch.load(os.path.join(path_to_echograms, 'data_tr_TEST_200.pt'))
+    label = torch.load(os.path.join(path_to_echograms, 'label_tr_TEST_200.pt'))
+    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2])
+
+
+    dataset = DatasetImg_for_comparisonP2(
+        data=data,
+        label=label,
+        label_transform_function=label_transform,
+        data_transform_function=data_transform)
+
+    return dataset_cp, dataset_semi
+
+
 def sampling_echograms_test(args):
     path_to_echograms = paths.path_to_echograms()
     samplers_test_bal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_bal.pt'))
@@ -361,6 +383,25 @@ def sampling_echograms_test(args):
         data_transform_function=data_transform)
 
     return dataset_test_bal, dataset_test_unbal
+
+
+def sampling_echograms_test_for_comparison(args):
+    path_to_echograms = paths.path_to_echograms()
+
+    data = torch.load(os.path.join(path_to_echograms, 'data_te_TEST_60.pt'))
+    label = torch.load(os.path.join(path_to_echograms, 'label_te_TEST_60.pt'))
+    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2])
+
+
+    dataset = DatasetImg_for_comparisonP2(
+        data=data,
+        label=label,
+        label_transform_function=label_transform,
+        data_transform_function=data_transform)
+
+    return dataset_test_bal, dataset_test_unbal
+
 
 def main(args):
     # fix random seeds
@@ -447,7 +488,9 @@ def main(args):
     ########################################'''
 
     print('Sample echograms.')
-    dataset_cp, dataset_semi = sampling_echograms_full(args)
+    # dataset_cp, dataset_semi = sampling_echograms_full(args) # Patch classification (paper #1)
+    dataset_cp, dataset_semi = sampling_echograms_full_for_comparison(args) # For comparison (paper #2)
+
     dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
                                                 shuffle=False,
                                                 batch_size=args.batch,
@@ -462,7 +505,9 @@ def main(args):
                                                 drop_last=False,
                                                 pin_memory=True)
 
-    dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
+    # dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
+    dataset_test_bal, dataset_test_unbal = sampling_echograms_test_for_comparison(args)
+
     dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
                                                 shuffle=False,
                                                 batch_size=args.batch,

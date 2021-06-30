@@ -1,13 +1,8 @@
 import numpy as np
 from scipy.ndimage.morphology import binary_closing
 
-def relabel_with_threshold_morph_close(
-        data, labels, echogram=None,
-        frequencies=[18, 38, 120, 200],
-        threshold_freq=200,
-        threshold_val=[1e-7, 1e-4],
-        ignore_val=None,
-        ignore_zero_inside_bbox=True):
+def relabel_with_threshold_morph_close_for_comparisonP2(
+        data, labels):
     '''
     Refine existing labels based on thresholding with respect to pixel values in image.
     :param data: (numpy.array) Image (C, H, W)
@@ -20,6 +15,11 @@ def relabel_with_threshold_morph_close(
     :return: data, new_labels, echogram
     '''
 
+    frequencies = [18, 38, 120, 200]
+    threshold_freq = 200
+    threshold_val = [1e-7, 1e-4]
+    ignore_zero_inside_bbox = True
+
     closing = np.array([
         [0, 0, 1, 1, 1, 0, 0],
         [0, 1, 1, 1, 1, 1, 0],
@@ -30,8 +30,7 @@ def relabel_with_threshold_morph_close(
         [0, 0, 1, 1, 1, 0, 0]
     ])
 
-    if ignore_val == None:
-        ignore_val = 0
+    ignore_val = 0
 
     # Set new label for all pixels inside bounding box that are below threshold value
     if ignore_zero_inside_bbox:
@@ -52,7 +51,7 @@ def relabel_with_threshold_morph_close(
     new_labels[mask] = label_below_threshold
     new_labels[labels == ignore_val] = ignore_val
 
-    return data, new_labels, echogram
+    return data, new_labels
 
 
 def relabel_with_threshold_morph_close_no_upper(

@@ -210,6 +210,47 @@ class DatasetImg():
     def __len__(self):
         return self.n_samples
 
+class DatasetImg_for_comparisonP2():
+    def __init__(self, data, label,
+                 label_transform_function=None,
+                 data_transform_function=None):
+        """
+        A dataset is used to draw random samples
+        :param samplers: The samplers used to draw samples
+        :param window_size: expected window size
+        :param n_samples:
+        :param frequencies:
+        :param sampler_probs:
+        :param augmentation_function:
+        :param label_transform_function:
+        :param data_transform_function:
+        """
+        self.data = data
+        self.label = label
+        self.n_samples = len(data)
+        self.label_transform_function = label_transform_function
+        self.data_transform_function = data_transform_function
+
+
+    def __getitem__(self, index):
+        data_sample = self.data[index]
+        label_sample = self.label[index]
+
+        # Apply data-transform-function
+        if self.label_transform_function is not None:
+            data_sample, label_sample_t = self.label_transform_function(data_sample, label_sample)
+        # Apply label_augmentation
+        if self.data_transform_function is not None:
+            data_sample_t, label_sample_t = self.data_transform_function(data_sample, label_sample_t)
+
+        return data_sample_t, label_sample_t, index
+
+
+
+    def __len__(self):
+        return self.n_samples
+
+
 class DatasetGrid():
     def __init__(self, sampler_test,
                  window_size,
