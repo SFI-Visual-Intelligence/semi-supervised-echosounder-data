@@ -25,6 +25,11 @@ from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
 
 current_dir = os.getcwd()
+
+if current_dir[-1] is not 'p':
+    os.chdir(os.path.join(current_dir, 'semi', '10p'))
+    current_dir = os.getcwd()
+
 sys.path.append(os.path.join(current_dir, '..', '..', 'deepcluster'))
 
 import paths

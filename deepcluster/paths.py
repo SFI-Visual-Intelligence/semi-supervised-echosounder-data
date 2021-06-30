@@ -8,12 +8,23 @@ try:
     # The above is very hacky and does not work on windows (Nils Olav).
     # How about this instead:
     abs_path_cwd, dummyfile = os.path.split(__file__)
-    
+    # print('abs', abs_path_cwd)
+
     with open(os.path.join(abs_path_cwd, 'setpyenv.json')) as file:
         json_data = file.read()
     setup_file = json.loads(json_data)
+    if not os.path.isdir(setup_file["path_to_echograms"]):
+        with open(os.path.join(abs_path_cwd, 'setpyenv_local.json')) as file:
+            json_data = file.read()
+    setup_file = json.loads(json_data)
+    if not os.path.isdir(setup_file["path_to_echograms"]):
+        with open(os.path.join(abs_path_cwd, 'setpyenv_mac.json')) as file:
+            json_data = file.read()
+        setup_file = json.loads(json_data)
+
     if 'syspath' in setup_file.keys():
         sys.path.append(setup_file["syspath"])
+
 
 except:
     class SetupFileIsMissing(Exception): pass
