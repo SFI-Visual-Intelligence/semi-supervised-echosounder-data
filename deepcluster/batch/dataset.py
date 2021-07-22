@@ -76,6 +76,39 @@ from utils.np import getGrid, linear_interpolation, nearest_interpolation
 #     def __len__(self):
 #         return self.n_samples
 
+def patch_splitter(sample, after_size=32, before_size=256, step=32, half_idx=0):
+    slice_indices = np.arange(after_size, before_size, step=step)
+    patches = np.asarray(np.split(sample, slice_indices, axis=-1))
+    if len(np.shape(patches)) == 4: # echosounder patch
+        patches = np.reshape(np.asarray(np.split(patches, slice_indices, axis=-2)), (-1, 4, 32, 32))
+    elif len(np.shape(patches)) == 3: # label patch
+        patches = np.reshape(np.asarray(np.split(patches, slice_indices, axis=-2)), (-1, 32, 32))
+
+    if half_idx == 0:
+        patches = patches [:32]
+    else:
+        patches = patches[32:]
+    return patches
+
+def label_scalar(l_patches, criteria=16):
+    l_scalars = []
+    for l_patch in l_patches:
+        unique = np.unique(l_patch)
+        if np.isin(-1, unique):
+            l_scalar = -1
+        else:
+            l_vec = np.bincount(l_patch.astype(int).reshape(-1), minlength=3)
+            if (l_vec[1] > criteria) or (l_vec[2] > criteria):
+                if l_vec[1] > l_vec[2]:
+                    l_scalar = 1
+                else:
+                    l_scalar = 2
+            else:
+                l_scalar = 0
+        l_scalars.append(l_scalar)
+
+    return np.asarray(l_scalars)
+
 class Dataset():
 
     def __init__(self, samplers, window_size, frequencies,
@@ -171,6 +204,7 @@ class DatasetImgUnbal():
     def __len__(self):
         return self.n_samples
 
+
 class DatasetImg():
     def __init__(self, samplers,
                  sampler_probs=None,
@@ -210,6 +244,7 @@ class DatasetImg():
     def __len__(self):
         return self.n_samples
 
+
 class DatasetImg_for_comparisonP2():
     def __init__(self, data, label,
                  label_transform_function=None,
@@ -227,24 +262,29 @@ class DatasetImg_for_comparisonP2():
         """
         self.data = data
         self.label = label
-        self.n_samples = len(data)
+        self.n_samples = len(data) * 2
         self.label_transform_function = label_transform_function
         self.data_transform_function = data_transform_function
 
-
     def __getitem__(self, index):
-        data_sample = self.data[index]
-        label_sample = self.label[index]
+        img_idx = index // 2
+        half_idx = index % 2
+
+        data_sample = self.data[img_idx]
+        label_sample = self.label[img_idx]
 
         # Apply data-transform-function
         if self.label_transform_function is not None:
-            data_sample, label_sample_t = self.label_transform_function(data_sample, label_sample)
+            data_sample, label_sample = self.label_transform_function(data_sample, label_sample)
         # Apply label_augmentation
         if self.data_transform_function is not None:
-            data_sample_t, label_sample_t = self.data_transform_function(data_sample, label_sample_t)
+            data_sample, label_sample = self.data_transform_function(data_sample, label_sample)
 
-        return data_sample_t, label_sample_t, index
+        d_patches = patch_splitter(data_sample, half_idx=half_idx)
+        l_patches = patch_splitter(label_sample, half_idx=half_idx)
+        l_scalars = label_scalar(l_patches)
 
+        return d_patches, l_scalars
 
 
     def __len__(self):

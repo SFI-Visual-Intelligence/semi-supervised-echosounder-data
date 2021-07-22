@@ -40,6 +40,7 @@ from batch.augmentation.flip_x_axis import flip_x_axis_img
 from batch.augmentation.add_noise import add_noise_img
 # from batch.dataset import DatasetImg
 # from batch.dataset import DatasetImgUnbal
+
 from batch.dataset import DatasetImg_for_comparisonP2
 
 #############
@@ -53,6 +54,7 @@ from batch.data_transform_functions.db_with_limits import db_with_limits_for_com
 from batch.combine_functions import CombineFunctions
 from batch.label_transform_functions.index_0_1_27_for_comparisonP2 import index_0_1_27_for_comparisonP2
 from batch.label_transform_functions.relabel_with_threshold_morph_close_for_comparisonP2 import relabel_with_threshold_morph_close_for_comparisonP2
+from batch.label_transform_functions.seabed_checker_for_comparisonP2 import seabed_checker_for_comparisonP2
 from classifier_linearSVC import SimpleClassifier
 
 def parse_args():
@@ -88,7 +90,7 @@ def parse_args():
                         help='manual epoch number (useful on restarts) (default: 0)')
     parser.add_argument('--save_epoch', default=100, type=int,
                         help='save features every epoch number (default: 20)')
-    parser.add_argument('--batch', default=32, type=int,
+    parser.add_argument('--batch', default=1, type=int,
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
@@ -128,7 +130,8 @@ def flatten_list(nested_list):
         flatten.extend(list)
     return flatten
 
-def supervised_train(loader, model, crit, opt_body, opt_category, epoch, device, args):
+
+def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_category, epoch, device, args):
     #############################################################
     # Supervised learning
     supervised_losses = AverageMeter()
@@ -166,7 +169,7 @@ def supervised_train(loader, model, crit, opt_body, opt_category, epoch, device,
     supervised_accuracy = sum(supervised_accu_list) / len(supervised_accu_list)
     return supervised_losses.avg, supervised_accuracy
 
-def test(dataloader, model, crit, device, args):
+def test_for_comparisonP2(dataloader, model, crit, device, args):
     if args.verbose:
         print('Test')
     test_losses = AverageMeter()
@@ -196,7 +199,7 @@ def test(dataloader, model, crit, device, args):
     test_accuracy = sum(accu_list) / len(accu_list)
     return test_losses.avg, test_accuracy, output_flat, label_flat
 
-def compute_features(dataloader, model, N, device, args):
+def compute_features_for_comparisonP2(dataloader, model, N, device, args):
     if args.verbose:
         print('Compute features')
     batch_time = AverageMeter()
@@ -206,6 +209,8 @@ def compute_features(dataloader, model, N, device, args):
     labels = []
     with torch.no_grad():
          for i, (input_tensor, label) in enumerate(dataloader):
+            input_tensor = torch.squeeze(input_tensor)
+            label = torch.squeeze(label)
             end = time.time()
             input_tensor.double()
             input_var = torch.autograd.Variable(input_tensor.to(device))
@@ -216,10 +221,10 @@ def compute_features(dataloader, model, N, device, args):
 
             aux = aux.astype('float32')
             if i < len(dataloader) - 1:
-                features[i * args.batch: (i + 1) * args.batch] = aux
+                features[i * 32: (i + 1) * 32] = aux
             else:
                 # special treatment for final batch
-                features[i * args.batch:] = aux
+                features[i * 32:] = aux
             input_tensors.append(input_tensor.data.cpu().numpy())
             labels.append(label.data.cpu().numpy())
 
@@ -233,7 +238,8 @@ def compute_features(dataloader, model, N, device, args):
          labels = np.concatenate(labels, axis=0)
          return features, input_tensors, labels
 
-def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epoch, device, args):
+
+def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit, opt_body, opt_category, epoch, device, args):
     batch_time = AverageMeter()
     losses = AverageMeter()
     semi_losses = AverageMeter()
@@ -318,89 +324,58 @@ def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epo
     semi_accuracy = sum(semi_accu_list)/len(semi_accu_list)
     return losses.avg, semi_losses.avg, semi_accuracy
 
-def sampling_echograms_full(args):
-    tr_ratio = [0.97808653, 0.01301181, 0.00890166]
+
+
+def sampling_echograms_full_for_comparisonP2(args):
     path_to_echograms = paths.path_to_echograms()
-
-    ########
-    samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
-
-    semi_count = int(len(samplers_train[0]) * args.semi_ratio)
-    samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
-
-    augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
-    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
-
-    dataset_cp = DatasetImg(
-        samplers_train,
-        args.sampler_probs,
-        augmentation_function=augmentation,
-        data_transform_function=data_transform)
-
-    dataset_semi = DatasetImg(
-        samplers_semi,
-        args.sampler_probs,
-        augmentation_function=augmentation,
-        data_transform_function=data_transform)
-
-    return dataset_cp, dataset_semi
-
-
-def sampling_echograms_full_for_comparison(args):
-    path_to_echograms = paths.path_to_echograms()
-
     data = torch.load(os.path.join(path_to_echograms, 'data_tr_TEST_200.pt'))
     label = torch.load(os.path.join(path_to_echograms, 'label_tr_TEST_200.pt'))
     data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
-    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
 
+    semi_count = int(len(data) * args.semi_ratio)
 
-    dataset = DatasetImg_for_comparisonP2(
-        data=data,
-        label=label,
-        label_transform_function=label_transform,
-        data_transform_function=data_transform)
+    dataset_cp = DatasetImg_for_comparisonP2(data=data,
+                                          label=label,
+                                          label_transform_function=label_transform,
+                                          data_transform_function=data_transform)
+
+    dataset_semi = DatasetImg_for_comparisonP2(data=data[:semi_count],
+                                          label=label[:semi_count],
+                                          label_transform_function=label_transform,
+                                          data_transform_function=data_transform)
 
     return dataset_cp, dataset_semi
 
 
-def sampling_echograms_test(args):
+def sampling_echograms_test_for_comparisonP2():
     path_to_echograms = paths.path_to_echograms()
-    samplers_test_bal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_bal.pt'))
-    samplers_test_unbal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_unbal.pt'))
-    data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
-
-    dataset_test_bal = DatasetImg(
-        samplers_test_bal,
-        args.sampler_probs,
-        augmentation_function=None,
-        data_transform_function=data_transform)
-
-    dataset_test_unbal = DatasetImgUnbal(
-        samplers_test_unbal,
-        args.sampler_probs,
-        augmentation_function=None,
-        data_transform_function=data_transform)
-
-    return dataset_test_bal, dataset_test_unbal
-
-
-def sampling_echograms_test_for_comparison(args):
-    path_to_echograms = paths.path_to_echograms()
-
     data = torch.load(os.path.join(path_to_echograms, 'data_te_TEST_60.pt'))
     label = torch.load(os.path.join(path_to_echograms, 'label_te_TEST_60.pt'))
     data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
-    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
+
+    dataset = DatasetImg_for_comparisonP2(data=data,
+                                          label=label,
+                                          label_transform_function=label_transform,
+                                          data_transform_function=data_transform)
+    return dataset
 
 
-    dataset = DatasetImg_for_comparisonP2(
-        data=data,
-        label=label,
-        label_transform_function=label_transform,
-        data_transform_function=data_transform)
+def sampling_echograms_2019_for_comparisonP2(echogram_idx=2, path_to_echograms=None):
+    if path_to_echograms == None:
+        path_to_echograms = paths.path_to_echograms()
+    data, label, patch_loc = torch.load(os.path.join(path_to_echograms, 'data_label_patch_loc_te_2019_%d.pt' % echogram_idx))
+    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
 
-    return dataset_test_bal, dataset_test_unbal
+    dataset_2019 = DatasetImg_for_comparisonP2(data=data,
+                                          label=label,
+                                          label_transform_function=label_transform,
+                                          data_transform_function=data_transform)
+
+
+    return dataset_2019, patch_loc
 
 
 def main(args):
@@ -489,7 +464,7 @@ def main(args):
 
     print('Sample echograms.')
     # dataset_cp, dataset_semi = sampling_echograms_full(args) # Patch classification (paper #1)
-    dataset_cp, dataset_semi = sampling_echograms_full_for_comparison(args) # For comparison (paper #2)
+    dataset_cp, dataset_semi = sampling_echograms_full_for_comparisonP2(args) # For comparison (paper #2)
 
     dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
                                                 shuffle=False,
@@ -505,24 +480,45 @@ def main(args):
                                                 drop_last=False,
                                                 pin_memory=True)
 
+
+    dataset_te = sampling_echograms_test_for_comparisonP2()
+
+    dataloader_test = torch.utils.data.DataLoader(dataset_te,
+                                                shuffle=False,
+                                                batch_size=args.batch,
+                                                num_workers=args.workers,
+                                                drop_last=False,
+                                                pin_memory=True)
+
+
+    dataset_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
+
+    dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
+                                          batch_size=1,
+                                          shuffle=False,
+                                          num_workers=args.workers,
+                                          worker_init_fn=np.random.seed,
+                                          drop_last=False,
+                                          pin_memory=True)
+
+
     # dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
-    dataset_test_bal, dataset_test_unbal = sampling_echograms_test_for_comparison(args)
-
-    dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-    dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
+    # dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
+    #
+    # dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
 
     # clustering algorithm to use
+
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
 
     # optionally resume from a checkpoint
@@ -556,13 +552,19 @@ def main(args):
     if not os.path.isdir(exp_check):
         os.makedirs(exp_check)
 
-    exp_bal = os.path.join(args.exp, 'bal')
-    exp_unbal = os.path.join(args.exp, 'unbal')
-    for dir_bal in [exp_bal, exp_unbal]:
-        for dir_2 in ['features', 'pca_features', 'pred']:
-            dir_to_make = os.path.join(dir_bal, dir_2)
-            if not os.path.isdir(dir_to_make):
-                os.makedirs(dir_to_make)
+    exp_test = os.path.join(args.exp, 'test')
+    for dir_2 in ['features', 'pca_features', 'pred']:
+        dir_to_make = os.path.join(exp_test, dir_2)
+        if not os.path.isdir(dir_to_make):
+            os.makedirs(dir_to_make)
+
+    # exp_bal = os.path.join(args.exp, 'bal')
+    # exp_unbal = os.path.join(args.exp, 'unbal')
+    # for dir_bal in [exp_bal, exp_unbal]:
+    #     for dir_2 in ['features', 'pca_features', 'pred']:
+    #         dir_to_make = os.path.join(dir_bal, dir_2)
+    #         if not os.path.isdir(dir_to_make):
+    #             os.makedirs(dir_to_make)
 
     if os.path.isfile(os.path.join(args.exp, 'loss_collect.pickle')):
         with open(os.path.join(args.exp, 'loss_collect.pickle'), "rb") as f:
@@ -596,7 +598,8 @@ def main(args):
         #######################
         '''
         print('Cluster the features')
-        features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
+        # features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
+        features_train, input_tensors_train, labels_train = compute_features_for_comparisonP2(dataloader_cp, model, len(dataset_cp) * 32, device=device, args=args)
         clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
 
         nan_location = np.isnan(pca_features)
@@ -655,7 +658,7 @@ def main(args):
 
         ''' train network with clusters as pseudo-labels '''
         with torch.autograd.set_detect_anomaly(True):
-            pseudo_loss, semi_loss, semi_accuracy = semi_train(train_dataloader, dataloader_semi, model, fd, criterion,
+            pseudo_loss, semi_loss, semi_accuracy = semi_train_for_comparisonP2(train_dataloader, dataloader_semi, model, fd, criterion,
                                                                optimizer_body, optimizer_category, epoch, device=device, args=args)
 
         # save checkpoint
@@ -682,15 +685,13 @@ def main(args):
         ##############
         ##############
         '''
-        test_loss_bal, test_accuracy_bal, test_pred_bal, test_label_bal = test(dataloader_test_bal, model, criterion, device, args)
-        test_loss_unbal, test_accuracy_unbal, test_pred_unbal, test_label_unbal = test(dataloader_test_unbal, model, criterion, device, args)
+
+        test_loss, test_accuracy, test_pred, test_label = test_for_comparisonP2(dataloader_test, model, criterion, device, args)
 
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'bal', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred_bal, test_label_bal], f)
-            with open(os.path.join(args.exp, 'unbal', 'pred', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred_unbal, test_label_unbal], f)
+            with open(os.path.join(args.exp, 'test', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+                pickle.dump([test_pred, test_label], f)
 
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
@@ -704,7 +705,7 @@ def main(args):
                   'TEST_bal accu: {8:.3f} \n'
                   'TEST_unbal accu: {9:.3f} \n'
                   .format(epoch, time.time() - end, pseudo_loss, semi_loss,
-                          test_loss_bal, test_loss_unbal, clustering_loss, semi_accuracy, test_accuracy_bal, test_accuracy_unbal))
+                          test_loss, test_loss, clustering_loss, semi_accuracy, test_accuracy, test_accuracy))
             try:
                 nmi = normalized_mutual_info_score(
                     clustering.arrange_clustering(deepcluster.images_lists),
@@ -735,13 +736,75 @@ def main(args):
         loss_collect[1].append(pseudo_loss)
         loss_collect[2].append(semi_loss)
         loss_collect[3].append(clustering_loss)
-        loss_collect[4].append(test_loss_bal)
-        loss_collect[5].append(test_loss_unbal)
+        loss_collect[4].append(test_loss)
+        loss_collect[5].append(test_loss)
         loss_collect[6].append(semi_accuracy)
-        loss_collect[7].append(test_accuracy_bal)
-        loss_collect[8].append(test_accuracy_unbal)
+        loss_collect[7].append(test_accuracy)
+        loss_collect[8].append(test_accuracy)
         with open(os.path.join(args.exp, 'loss_collect.pickle'), "wb") as f:
             pickle.dump(loss_collect, f)
+
+
+        # test_loss_bal, test_accuracy_bal, test_pred_bal, test_label_bal = test(dataloader_test_bal, model, criterion, device, args)
+        # test_loss_unbal, test_accuracy_unbal, test_pred_unbal, test_label_unbal = test(dataloader_test_unbal, model, criterion, device, args)
+
+        # '''Save prediction of the test set'''
+        # if (epoch % args.save_epoch == 0):
+        #     with open(os.path.join(args.exp, 'bal', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+        #         pickle.dump([test_pred_bal, test_label_bal], f)
+        #     with open(os.path.join(args.exp, 'unbal', 'pred', 'sup_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
+        #         pickle.dump([test_pred_unbal, test_label_unbal], f)
+        #
+        # if args.verbose:
+        #     print('###### Epoch [{0}] ###### \n'
+        #           'Time: {1:.3f} s\n'
+        #           'Pseudo tr_loss: {2:.3f} \n'
+        #           'SEMI tr_loss: {3:.3f} \n'
+        #           'TEST_bal loss: {4:.3f} \n'
+        #           'TEST_unbal loss: {5:.3f} \n'
+        #           'Clustering loss: {6:.3f} \n\n'
+        #           'SEMI accu: {7:.3f} \n'
+        #           'TEST_bal accu: {8:.3f} \n'
+        #           'TEST_unbal accu: {9:.3f} \n'
+        #           .format(epoch, time.time() - end, pseudo_loss, semi_loss,
+        #                   test_loss_bal, test_loss_unbal, clustering_loss, semi_accuracy, test_accuracy_bal, test_accuracy_unbal))
+        #     try:
+        #         nmi = normalized_mutual_info_score(
+        #             clustering.arrange_clustering(deepcluster.images_lists),
+        #             clustering.arrange_clustering(cluster_log.data[-1])
+        #         )
+        #         nmi_save.append(nmi)
+        #         print('NMI against previous assignment: {0:.3f}'.format(nmi))
+        #         with open(os.path.join(args.exp, 'nmi_collect.pickle'), "wb") as ff:
+        #             pickle.dump(nmi_save, ff)
+        #     except IndexError:
+        #         pass
+        #     print('####################### \n')
+        #
+        # # save cluster assignments
+        # cluster_log.log(deepcluster.images_lists)
+        #
+        # # save running checkpoint
+        # torch.save({'epoch': epoch + 1,
+        #             'arch': args.arch,
+        #             'state_dict': model.state_dict(),
+        #             'optimizer_body': optimizer_body.state_dict(),
+        #             'optimizer_category': optimizer_category.state_dict(),
+        #             },
+        #            os.path.join(args.exp, 'checkpoint.pth.tar'))
+        # torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
+        #
+        # loss_collect[0].append(epoch)
+        # loss_collect[1].append(pseudo_loss)
+        # loss_collect[2].append(semi_loss)
+        # loss_collect[3].append(clustering_loss)
+        # loss_collect[4].append(test_loss_bal)
+        # loss_collect[5].append(test_loss_unbal)
+        # loss_collect[6].append(semi_accuracy)
+        # loss_collect[7].append(test_accuracy_bal)
+        # loss_collect[8].append(test_accuracy_unbal)
+        # with open(os.path.join(args.exp, 'loss_collect.pickle'), "wb") as f:
+        #     pickle.dump(loss_collect, f)
 
         '''
         ############################
@@ -834,3 +897,248 @@ if __name__ == '__main__':
     args = parse_args()
     main(args)
 
+#######################################################
+#######################################################
+#######################################################
+
+
+# def supervised_train(loader, model, crit, opt_body, opt_category, epoch, device, args):
+#     #############################################################
+#     # Supervised learning
+#     supervised_losses = AverageMeter()
+#     supervised_output_save = []
+#     supervised_label_save = []
+#     for i, (input_tensor, label) in enumerate(loader):
+#         input_var = torch.autograd.Variable(input_tensor.to(device))
+#         label_var = torch.autograd.Variable(label.to(device, non_blocking=True))
+#         output = model(input_var)
+#         supervised_loss = crit(output, label_var.long())
+#
+#         # compute gradient and do SGD step
+#         opt_category.zero_grad()
+#         opt_body.zero_grad()
+#         supervised_loss.backward()
+#         opt_category.step()
+#         opt_body.step()
+#
+#         # record loss
+#         supervised_losses.update(supervised_loss.item(), input_tensor.size(0))
+#
+#         # Record accuracy
+#         output = torch.argmax(output, axis=1)
+#         supervised_output_save.append(output.data.cpu().numpy())
+#         supervised_label_save.append(label.data.cpu().numpy())
+#
+#         if args.verbose and (i % args.display_count) == 0:
+#             print('Epoch: [{0}][{1}/{2}]\t'
+#                   'SUPERVISED__Loss: {loss.val:.4f} ({loss.avg:.4f})'
+#                   .format(epoch, i, len(loader), loss=supervised_losses))
+#
+#     supervised_output_flat = flatten_list(supervised_output_save)
+#     supervised_label_flat = flatten_list(supervised_label_save)
+#     supervised_accu_list = [out == lab for (out, lab) in zip(supervised_output_flat, supervised_label_flat)]
+#     supervised_accuracy = sum(supervised_accu_list) / len(supervised_accu_list)
+#     return supervised_losses.avg, supervised_accuracy
+#
+# def test(dataloader, model, crit, device, args):
+#     if args.verbose:
+#         print('Test')
+#     test_losses = AverageMeter()
+#     model.eval()
+#
+#     test_output_save = []
+#     test_label_save = []
+#     with torch.no_grad():
+#         for i, (input_tensor, label) in enumerate(dataloader):
+#             input_var = torch.autograd.Variable(input_tensor.to(device))
+#             label_var = torch.autograd.Variable(label.to(device))
+#             output = model(input_var)
+#             loss = crit(output, label_var.long())
+#             test_losses.update(loss.item(), input_tensor.size(0))
+#
+#             output = torch.argmax(output, axis=1)
+#             test_output_save.append(output.data.cpu().numpy())
+#             test_label_save.append(label.data.cpu().numpy())
+#
+#             if args.verbose and (i % args.display_count) == 0:
+#                 print('{0} / {1}\t'
+#                       'TEST_Loss: {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(dataloader), loss=test_losses))
+#
+#     output_flat = flatten_list(test_output_save)
+#     label_flat = flatten_list(test_label_save)
+#     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
+#     test_accuracy = sum(accu_list) / len(accu_list)
+#     return test_losses.avg, test_accuracy, output_flat, label_flat
+#
+# def compute_features(dataloader, model, N, device, args):
+#     if args.verbose:
+#         print('Compute features')
+#     batch_time = AverageMeter()
+#     model.eval()
+#     # discard the label information in the dataloader
+#     input_tensors = []
+#     labels = []
+#     with torch.no_grad():
+#          for i, (input_tensor, label) in enumerate(dataloader):
+#             end = time.time()
+#             input_tensor.double()
+#             input_var = torch.autograd.Variable(input_tensor.to(device))
+#             aux = model(input_var).data.cpu().numpy()
+#
+#             if i == 0:
+#                 features = np.zeros((N, aux.shape[1]), dtype='float32')
+#
+#             aux = aux.astype('float32')
+#             if i < len(dataloader) - 1:
+#                 features[i * args.batch: (i + 1) * args.batch] = aux
+#             else:
+#                 # special treatment for final batch
+#                 features[i * args.batch:] = aux
+#             input_tensors.append(input_tensor.data.cpu().numpy())
+#             labels.append(label.data.cpu().numpy())
+#
+#             # measure elapsed time
+#             batch_time.update(time.time() - end)
+#             if args.verbose and (i % args.display_count) == 0:
+#                 print('{0} / {1}\t'
+#                       'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
+#                       .format(i, len(dataloader), batch_time=batch_time))
+#          input_tensors = np.concatenate(input_tensors, axis=0)
+#          labels = np.concatenate(labels, axis=0)
+#          return features, input_tensors, labels
+#
+# def semi_train(loader, semi_loader, model, fd, crit, opt_body, opt_category, epoch, device, args):
+#     batch_time = AverageMeter()
+#     losses = AverageMeter()
+#     semi_losses = AverageMeter()
+#
+#     # switch to train mode
+#     model.train()
+#     end = time.time()
+#     for i, ((input_tensor, label), pseudo_target, imgidx) in enumerate(loader):
+#
+#         input_var = torch.autograd.Variable(input_tensor.to(device))
+#         pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
+#         output = model(input_var)
+#         loss = crit(output, pseudo_target_var.long())
+#
+#         # record loss
+#         losses.update(loss.item(), input_tensor.size(0))
+#
+#         # compute gradient and do SGD step
+#         opt_body.zero_grad()
+#         loss.backward()
+#         opt_body.step()
+#
+#         # measure elapsed time
+#         batch_time.update(time.time() - end)
+#         end = time.time()
+#
+#         if args.verbose and (i % args.display_count) == 0:
+#             print('Epoch: [{0}][{1}/{2}]\t'
+#                   'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+#                   'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
+#                   .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
+#
+#     '''SUPERVISION with a few labelled dataset'''
+#     model.cluster_layer = None
+#     model.category_layer = nn.Sequential(
+#         nn.Linear(fd, args.nmb_category),
+#         nn.Softmax(dim=1),
+#     )
+#     model.category_layer[0].weight.data.normal_(0, 0.01)
+#     model.category_layer[0].bias.data.zero_()
+#     model.category_layer = model.category_layer.double()
+#     model.category_layer.to(device)
+#
+#     category_save = os.path.join(args.exp, 'category_layer.pth.tar')
+#     if os.path.isfile(category_save):
+#         category_layer_param = torch.load(category_save)
+#         model.category_layer.load_state_dict(category_layer_param)
+#
+#     semi_output_save = []
+#     semi_label_save = []
+#     for i, (input_tensor, label) in enumerate(semi_loader):
+#         input_var = torch.autograd.Variable(input_tensor.to(device))
+#         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
+#
+#         output = model(input_var)
+#         semi_loss = crit(output, label_var.long())
+#
+#         # compute gradient and do SGD step
+#         opt_category.zero_grad()
+#         opt_body.zero_grad()
+#         semi_loss.backward()
+#         opt_category.step()
+#         opt_body.step()
+#
+#         # record loss
+#         semi_losses.update(semi_loss.item(), input_tensor.size(0))
+#
+#         # Record accuracy
+#         output = torch.argmax(output, axis=1)
+#         semi_output_save.append(output.data.cpu().numpy())
+#         semi_label_save.append(label.data.cpu().numpy())
+#
+#         # measure elapsed time
+#         if args.verbose and (i % args.display_count) == 0:
+#             print('Epoch: [{0}][{1}/{2}]\t'
+#                   'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
+#                   .format(epoch, i, len(semi_loader), loss=semi_losses))
+#
+#     semi_output_flat = flatten_list(semi_output_save)
+#     semi_label_flat = flatten_list(semi_label_save)
+#     semi_accu_list = [out == lab for (out, lab) in zip(semi_output_flat, semi_label_flat)]
+#     semi_accuracy = sum(semi_accu_list)/len(semi_accu_list)
+#     return losses.avg, semi_losses.avg, semi_accuracy
+
+
+# def sampling_echograms_full(args):
+#     tr_ratio = [0.97808653, 0.01301181, 0.00890166]
+#     path_to_echograms = paths.path_to_echograms()
+#
+#     ########
+#     samplers_train = torch.load(os.path.join(path_to_echograms, 'sampler3_tr.pt'))
+#
+#     semi_count = int(len(samplers_train[0]) * args.semi_ratio)
+#     samplers_semi = [samplers[:semi_count] for samplers in samplers_train]
+#
+#     augmentation = CombineFunctions([add_noise_img, flip_x_axis_img])
+#     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
+#
+#     dataset_cp = DatasetImg(
+#         samplers_train,
+#         args.sampler_probs,
+#         augmentation_function=augmentation,
+#         data_transform_function=data_transform)
+#
+#     dataset_semi = DatasetImg(
+#         samplers_semi,
+#         args.sampler_probs,
+#         augmentation_function=augmentation,
+#         data_transform_function=data_transform)
+#
+#     return dataset_cp, dataset_semi
+
+# def sampling_echograms_test(args):
+#     path_to_echograms = paths.path_to_echograms()
+#     samplers_test_bal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_bal.pt'))
+#     samplers_test_unbal = torch.load(os.path.join(path_to_echograms, 'sampler3_te_unbal.pt'))
+#     data_transform = CombineFunctions([remove_nan_inf_img, db_with_limits_img])
+#
+#     dataset_test_bal = DatasetImg(
+#         samplers_test_bal,
+#         args.sampler_probs,
+#         augmentation_function=None,
+#         data_transform_function=data_transform)
+#
+#     dataset_test_unbal = DatasetImgUnbal(
+#         samplers_test_unbal,
+#         args.sampler_probs,
+#         augmentation_function=None,
+#         data_transform_function=data_transform)
+#
+#     return dataset_test_bal, dataset_test_unbal
+#######################################################
+#######################################################
+#######################################################
