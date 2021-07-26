@@ -626,12 +626,22 @@ def main(args):
 
         train_dataloader = torch.utils.data.DataLoader(
             train_dataset,
-            batch_size=args.batch,
+            batch_size=32, #args.batch
             shuffle=False,
             num_workers=args.workers,
             sampler=sampler_train,
             pin_memory=True,
         )
+
+        # train_dataloader = torch.utils.data.DataLoader(
+        #     train_dataset,
+        #     batch_size=args.batch
+        #     shuffle=False,
+        #     num_workers=args.workers,
+        #     sampler=sampler_train,
+        #     pin_memory=True,
+        # )
+
         '''
         ####################################################################
         ####################################################################
