@@ -508,23 +508,6 @@ def main(args):
                                           pin_memory=True)
 
 
-    # dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
-    # dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
-    #                                             shuffle=False,
-    #                                             batch_size=args.batch,
-    #                                             num_workers=args.workers,
-    #                                             drop_last=False,
-    #                                             pin_memory=True)
-    #
-    # dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
-    #                                             shuffle=False,
-    #                                             batch_size=args.batch,
-    #                                             num_workers=args.workers,
-    #                                             drop_last=False,
-    #                                             pin_memory=True)
-
-    # clustering algorithm to use
-
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
 
     # optionally resume from a checkpoint
@@ -764,7 +747,7 @@ def main(args):
         '''
         ############################
         ############################
-        # PSEUDO-LABEL GEN: Test set (balanced UA)
+        # PSEUDO-LABEL GEN: Test set
         ############################
         ############################
         '''
@@ -798,9 +781,9 @@ def main(args):
 
 
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'bal', 'features', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'test', 'features', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump(cp_epoch_out_te, f)
-            with open(os.path.join(args.exp, 'bal', 'pca_features',  'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'test', 'pca_features',  'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump(pca_features_te, f)
 
 
@@ -1156,3 +1139,20 @@ if __name__ == '__main__':
 #         pickle.dump(cp_epoch_out_unbal, f)
 #     with open(os.path.join(args.exp, 'unbal', 'pca_features', 'pca_epoch_%d_te_unbal.pickle' % epoch), "wb") as f:
 #         pickle.dump(pca_features_te_unbal, f)
+#
+    # dataset_test_bal, dataset_test_unbal = sampling_echograms_test(args)
+    # dataloader_test_bal = torch.utils.data.DataLoader(dataset_test_bal,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
+    #
+    # dataloader_test_unbal = torch.utils.data.DataLoader(dataset_test_unbal,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
+
+    # clustering algorithm to use
