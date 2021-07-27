@@ -19,6 +19,7 @@ import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from scipy.optimize import linear_sum_assignment
@@ -131,7 +132,7 @@ def flatten_list(nested_list):
     return flatten
 
 def rebuild_input_patch(input_tensors_te, indim=32, outdim=256):
-    # inp.shape = (N,* 64, 4, 32, 32)
+    # inp.shape = (N * 64, 4, 32, 32)
     # out.shape = (N, 4, 256, 256)
     # order: 0 - 7 // 8 - 15 ...
     N = len(input_tensors_te)//64
@@ -202,6 +203,7 @@ def test_for_comparisonP2(dataloader, model, crit, device, args):
     model.eval()
 
     test_output_save = []
+    test_out_softmax_save = []
     test_label_save = []
     with torch.no_grad():
         for i, (input_tensor, label) in enumerate(dataloader):
@@ -212,9 +214,11 @@ def test_for_comparisonP2(dataloader, model, crit, device, args):
             output = model(input_var)
             loss = crit(output, label_var.long())
             test_losses.update(loss.item(), input_tensor.size(0))
+            pred_mat = F.softmax(output, dim=1)
 
-            output = torch.argmax(output, axis=1)
-            test_output_save.append(output.data.cpu().numpy())
+            output_argmax = torch.argmax(output, axis=1)
+            test_out_softmax_save.append(pred_mat.data.cpu().numpy())
+            test_output_save.append(output_argmax.data.cpu().numpy())
             test_label_save.append(label.data.cpu().numpy())
 
             if args.verbose and (i % args.display_count) == 0:
