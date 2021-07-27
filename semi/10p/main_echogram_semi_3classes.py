@@ -225,11 +225,12 @@ def test_for_comparisonP2(dataloader, model, crit, device, args):
                 print('{0} / {1}\t'
                       'TEST_Loss: {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(dataloader), loss=test_losses))
 
+    test_out_softmax_flat = flatten_list(test_out_softmax_save)
     output_flat = flatten_list(test_output_save)
     label_flat = flatten_list(test_label_save)
     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
     test_accuracy = sum(accu_list) / len(accu_list)
-    return test_losses.avg, test_accuracy, output_flat, label_flat
+    return test_losses.avg, test_accuracy, output_flat, label_flat, test_out_softmax_flat
 
 def compute_features_for_comparisonP2(dataloader, model, N, device, args):
     if args.verbose:
@@ -713,11 +714,11 @@ def main(args):
         ##############
         '''
 
-        test_loss, test_accuracy, test_pred, test_label = test_for_comparisonP2(dataloader_test, model, criterion, device, args)
+        test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion, device, args)
 
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'test', 'pred', 'sup_epoch_%d_te_bal.pickle' % epoch), "wb") as f:
+            with open(os.path.join(args.exp, 'test', 'pred', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump([test_pred, test_label], f)
 
         if args.verbose:
@@ -725,11 +726,11 @@ def main(args):
                   'Time: {1:.3f} s\n'
                   'Pseudo tr_loss: {2:.3f} \n'
                   'SEMI tr_loss: {3:.3f} \n'
-                  'TEST_bal loss: {4:.3f} \n'
+                  'TEST loss: {4:.3f} \n'
                   'TEST_unbal loss: {5:.3f} \n'
                   'Clustering loss: {6:.3f} \n\n'
                   'SEMI accu: {7:.3f} \n'
-                  'TEST_bal accu: {8:.3f} \n'
+                  'TEST accu: {8:.3f} \n'
                   'TEST_unbal accu: {9:.3f} \n'
                   .format(epoch, time.time() - end, pseudo_loss, semi_loss,
                           test_loss, test_loss, clustering_loss, semi_accuracy, test_accuracy, test_accuracy))
