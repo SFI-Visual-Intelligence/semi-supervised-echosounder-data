@@ -130,19 +130,28 @@ def flatten_list(nested_list):
         flatten.extend(list)
     return flatten
 
-def rebuild_patch(inp, indim=32, outdim=256):
-    # inp.shape = (64, 4, 32, 32)
-    # out.shape = (4, 256, 256)
+def rebuild_input_patch(input_tensors_te, indim=32, outdim=256):
+    # inp.shape = (N,* 64, 4, 32, 32)
+    # out.shape = (N, 4, 256, 256)
     # order: 0 - 7 // 8 - 15 ...
-    outdim = 256
-    indim = 32
-    patch_per_col = outdim//indim
-    for rowidx in range(patch_per_col):
-        rowcon = np.concatenate(inp[rowidx * patch_per_col: (rowidx + 1)*patch_per_col], axis=-1)
-        if rowidx == 0:
-            colcon = rowcon
-        else:
-            colcon = np.concatenate([colcon, rowcon], axis=1)
+    N = len(input_tensors_te)//64
+    inp_res = np.reshape(input_tensors_te, (N, 64, 4, 32, 32))
+    patch_per_col = outdim // indim
+    reshaped_te = []
+    for inp in inp_res:
+        for rowidx in range(patch_per_col):
+            rowcon = np.concatenate(inp[rowidx * patch_per_col: (rowidx + 1)*patch_per_col], axis=-1)
+            if rowidx == 0:
+                colcon = rowcon
+            else:
+                colcon = np.concatenate([colcon, rowcon], axis=1)
+        reshaped_te.append(colcon)
+    return reshaped_te
+
+def rebuild_pred_patch(lst, outdim=256):
+    # inp.shape = (64)
+    # out.shape = (256, 256)
+    lst_sqr =np.reshape(lst)
     return colcon
 
 
