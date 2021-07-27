@@ -130,6 +130,21 @@ def flatten_list(nested_list):
         flatten.extend(list)
     return flatten
 
+def rebuild_patch(inp, indim=32, outdim=256):
+    # inp.shape = (64, 4, 32, 32)
+    # out.shape = (4, 256, 256)
+    # order: 0 - 7 // 8 - 15 ...
+    outdim = 256
+    indim = 32
+    patch_per_col = outdim//indim
+    for rowidx in range(patch_per_col):
+        rowcon = np.concatenate(inp[rowidx * patch_per_col: (rowidx + 1)*patch_per_col], axis=-1)
+        if rowidx == 0:
+            colcon = rowcon
+        else:
+            colcon = np.concatenate([colcon, rowcon], axis=1)
+    return colcon
+
 
 def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_category, epoch, device, args):
     #############################################################
@@ -744,48 +759,6 @@ def main(args):
             pickle.dump(loss_collect, f)
 
 
-        '''
-        ############################
-        ############################
-        # PSEUDO-LABEL GEN: Test set
-        ############################
-        ############################
-        '''
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-        model.cluster_layer = None
-        model.category_layer = None
-
-        print('TEST set: Cluster the features')
-        features_te, input_tensors_te, labels_te = compute_features_for_comparisonP2(dataloader_test, model, len(dataset_te)*args.for_comparisonP2_batchsize,
-                                                                    device=device, args=args)
-        clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
-
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-        mlp.append(nn.ReLU(inplace=True).to(device))
-        model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device)
-
-        nan_location_te = np.isnan(pca_features_te)
-        inf_location_te = np.isinf(pca_features_te)
-        if (not np.allclose(nan_location_te, 0)) or (not np.allclose(inf_location_te, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_te), ' Inf count: ',
-                  np.sum(inf_location_te))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features_te, 'te_pca_NaN_%d_te.pth.tar' % epoch)
-            torch.save(features_te, 'te_feature_NaN_%d_te.pth.tar' % epoch)
-            continue
-
-        # save patches per epochs
-        cp_epoch_out_te = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
-                        labels_te]
-
-
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'test', 'features', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(cp_epoch_out_te, f)
-            with open(os.path.join(args.exp, 'test', 'pca_features',  'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump(pca_features_te, f)
-
 
 if __name__ == '__main__':
     args = parse_args()
@@ -1156,3 +1129,45 @@ if __name__ == '__main__':
     #                                             pin_memory=True)
 
     # clustering algorithm to use
+
+# '''
+# ############################
+# ############################
+# # PSEUDO-LABEL GEN: Test set
+# ############################
+# ############################
+# '''
+# model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+# model.cluster_layer = None
+# model.category_layer = None
+#
+# print('TEST set: Cluster the features')
+# features_te, input_tensors_te, labels_te = compute_features_for_comparisonP2(dataloader_test, model, len(dataset_te)*args.for_comparisonP2_batchsize,
+#                                                             device=device, args=args)
+# clustering_loss_te, pca_features_te = deepcluster.cluster(features_te, verbose=args.verbose)
+#
+# mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+# mlp.append(nn.ReLU(inplace=True).to(device))
+# model.classifier = nn.Sequential(*mlp)
+# model.classifier.to(device)
+#
+# nan_location_te = np.isnan(pca_features_te)
+# inf_location_te = np.isinf(pca_features_te)
+# if (not np.allclose(nan_location_te, 0)) or (not np.allclose(inf_location_te, 0)):
+#     print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location_te), ' Inf count: ',
+#           np.sum(inf_location_te))
+#     print('Skip epoch ', epoch)
+#     torch.save(pca_features_te, 'te_pca_NaN_%d_te.pth.tar' % epoch)
+#     torch.save(features_te, 'te_feature_NaN_%d_te.pth.tar' % epoch)
+#     continue
+#
+# # save patches per epochs
+# cp_epoch_out_te = [features_te, deepcluster.images_lists, deepcluster.images_dist_lists, input_tensors_te,
+#                 labels_te]
+#
+#
+# if (epoch % args.save_epoch == 0):
+#     with open(os.path.join(args.exp, 'test', 'features', 'cp_epoch_%d_te.pickle' % epoch), "wb") as f:
+#         pickle.dump(cp_epoch_out_te, f)
+#     with open(os.path.join(args.exp, 'test', 'pca_features',  'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
+#         pickle.dump(pca_features_te, f)
