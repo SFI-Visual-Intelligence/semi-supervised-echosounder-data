@@ -716,10 +716,13 @@ def main(args):
 
         test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion, device, args)
 
+
+
+
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
             with open(os.path.join(args.exp, 'test', 'pred', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred, test_label], f)
+                pickle.dump([test_pred, test_label, test_pred_softmax], f)
 
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
