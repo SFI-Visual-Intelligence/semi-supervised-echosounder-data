@@ -24,6 +24,9 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
+from deepcluster.confusion_matrix import conf_mat, roc_curve_macro
+
+
 current_dir = os.getcwd()
 
 # if current_dir[-1] is not 'p':
@@ -112,6 +115,7 @@ def parse_args():
                         help='path to checkpoint (default: None)')
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
+    parser.add_argument('--pred_test', type=str, default=os.path.join(current_dir, 'test', 'pred'), help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
@@ -149,11 +153,34 @@ def rebuild_input_patch(input_tensors_te, indim=32, outdim=256):
         reshaped_te.append(colcon)
     return reshaped_te
 
-def rebuild_pred_patch(lst, outdim=256):
-    # inp.shape = (64)
-    # out.shape = (256, 256)
-    lst_sqr =np.reshape(lst)
-    return colcon
+
+def test_analysis(labels, predictions, predictions_mat):
+    keep_test_idx = np.where(labels > -1)
+    labels_vec = labels[keep_test_idx]
+    predictions_vec = predictions[keep_test_idx]
+    predictions_mat_sampled = predictions_mat[keep_test_idx[0], :, keep_test_idx[1], keep_test_idx[2]]
+    fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
+    prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
+    acc_bg, acc_se, acc_ot = prob_mat.diagonal()
+
+
+def rebuild_pred_patch(inp, patch_len=32, outdim=256):
+    count_patch = outdim//patch_len
+    N = len(inp) // count_patch ** 2
+    if len(np.shape(inp)) == 2:
+        inp_sqr = np.reshape(inp, (N, count_patch, count_patch, 3))
+        out_sqr = np.zeros((N, outdim, outdim, 3))
+    elif len(np.shape(inp)) == 1:
+        inp_sqr = np.reshape(inp, (N, count_patch, count_patch))
+        out_sqr = np.zeros((N, outdim, outdim))
+
+    for n, (in_one_sqr, out_one_sqr) in enumerate(zip(inp_sqr, out_sqr)):
+        for row in range(8):
+            for col in range(8):
+                dupl = np.tile(in_one_sqr[row][col], (patch_len, patch_len)).reshape(patch_len, patch_len, -1)
+                dupl = np.squeeze(dupl)
+                out_one_sqr[row * patch_len: (row + 1) * patch_len, col * patch_len: (col + 1) * patch_len] = dupl
+    return out_sqr
 
 
 def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_category, epoch, device, args):
@@ -196,6 +223,7 @@ def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_categor
     supervised_accuracy = sum(supervised_accu_list) / len(supervised_accu_list)
     return supervised_losses.avg, supervised_accuracy
 
+
 def test_for_comparisonP2(dataloader, model, crit, device, args):
     if args.verbose:
         print('Test')
@@ -231,6 +259,7 @@ def test_for_comparisonP2(dataloader, model, crit, device, args):
     accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
     test_accuracy = sum(accu_list) / len(accu_list)
     return test_losses.avg, test_accuracy, output_flat, label_flat, test_out_softmax_flat
+
 
 def compute_features_for_comparisonP2(dataloader, model, N, device, args):
     if args.verbose:
@@ -360,7 +389,6 @@ def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit, opt_body, 
     return losses.avg, semi_losses.avg, semi_accuracy
 
 
-
 def sampling_echograms_full_for_comparisonP2(args):
     path_to_echograms = paths.path_to_echograms()
     data = torch.load(os.path.join(path_to_echograms, 'data_tr_TEST_200.pt'))
@@ -408,8 +436,6 @@ def sampling_echograms_2019_for_comparisonP2(echogram_idx=2, path_to_echograms=N
                                           label=label,
                                           label_transform_function=label_transform,
                                           data_transform_function=data_transform)
-
-
     return dataset_2019, patch_loc
 
 
@@ -713,10 +739,22 @@ def main(args):
         ##############
         ##############
         '''
-
         test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion, device, args)
 
+        test_pred_large = rebuild_pred_patch(test_pred)
+        test_label_large = rebuild_pred_patch(test_label)
+        test_softmax_large = rebuild_pred_patch(test_pred_softmax)
 
+
+
+        print('\n\n#############################################')
+        print('#############################################')
+        print('###############   TEST   ###################')
+        print(
+            'Epoch {0:3d} \t  Accuracy bg[0]: {1:.3f} \t Accuracy se[1]: {2:.3f} \t Accuracy ot[2]: {3:.3f}, Loss {4:.3f}'.format(
+                epoch, acc_bg, acc_se, acc_ot, running_loss_test.avg))
+        print('#############################################')
+        print('#############################################\n\n')
 
 
         '''Save prediction of the test set'''
