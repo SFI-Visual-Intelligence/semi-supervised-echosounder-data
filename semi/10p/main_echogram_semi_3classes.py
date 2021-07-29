@@ -134,7 +134,7 @@ def main(args):
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
     criterion_pseudo = nn.CrossEntropyLoss()
-    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device=device, dtype=torch.float))
+    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device=device, dtype=torch.double))
 
     # CNN
     if args.verbose:
