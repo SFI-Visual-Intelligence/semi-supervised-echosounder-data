@@ -134,7 +134,7 @@ def main(args):
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
     criterion_pseudo = nn.CrossEntropyLoss()
-    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device))
+    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device=device, dtype=torch.float))
 
     # CNN
     if args.verbose:
@@ -238,15 +238,15 @@ def main(args):
                                                 pin_memory=True)
 
 
-    # dataset_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
-    #
-    # dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
-    #                                       batch_size=1,
-    #                                       shuffle=False,
-    #                                       num_workers=args.workers,
-    #                                       worker_init_fn=np.random.seed,
-    #                                       drop_last=False,
-    #                                       pin_memory=True)
+    dataset_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
+
+    dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
+                                          batch_size=1,
+                                          shuffle=False,
+                                          num_workers=args.workers,
+                                          worker_init_fn=np.random.seed,
+                                          drop_last=False,
+                                          pin_memory=True)
 
 
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
@@ -448,6 +448,18 @@ def main(args):
         records_te_epoch['SE_accu_epoch'].append(se_accu)
         records_te_epoch['OT_accu_epoch'].append(ot_accu)
         torch.save(records_te_epoch, os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
+
+        '''
+        ##############
+        ##############
+        # 2019 phase
+        ##############
+        ##############
+        '''
+        test_loss_2019, test_accuracy_2019, test_pred_2019, test_label_2019, test_pred_softmax_2019 = test_for_comparisonP2(dataloader_2019, model, criterion_sup, device, args)
+        test_pred_large_2019 = rebuild_pred_patch(test_pred_2019)
+        test_softmax_large_2019 = rebuild_pred_patch(test_pred_softmax_2019)
+        test_label_large_2019 = rebuild_pred_patch(test_label_2019)
 
 
 
