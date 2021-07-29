@@ -89,7 +89,7 @@ def parse_args():
                         reassignments of clusters (default: 1)""")
     parser.add_argument('--workers', default=4, type=int,
                         help='number of data loading workers (default: 4)')
-    parser.add_argument('--epochs', type=int, default=1000,
+    parser.add_argument('--epochs', type=int, default=1,
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('--pretrain_epoch', type=int, default=0,
                         help='number of pretrain epochs to run (default: 200)')
