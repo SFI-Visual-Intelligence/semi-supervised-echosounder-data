@@ -118,7 +118,6 @@ def compute_features_for_comparisonP2(dataloader, model, N, device, args):
             input_tensor = torch.squeeze(input_tensor)
             label = torch.squeeze(label)
             end = time.time()
-            input_tensor.double()
             input_var = torch.autograd.Variable(input_tensor.to(device))
             aux = model(input_var).data.cpu().numpy()
 
@@ -186,7 +185,6 @@ def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit_pseudo, cri
     )
     model.category_layer[0].weight.data.normal_(0, 0.01)
     model.category_layer[0].bias.data.zero_()
-    # model.category_layer = model.category_layer
     model.category_layer.to(device=device, dtype=torch.float)
 
     category_save = os.path.join(args.exp, 'category_layer.pth.tar')
