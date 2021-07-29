@@ -113,6 +113,8 @@ def plot_conf_best(epoch, prob_mat, mat, f1_score, kappa, args):
 
 
 def conf_mat(ylabel, ypred, args):
+    ylabel = ylabel.astype(int)
+    ypred = ypred.astype(int)
     mat = np.zeros([args.n_classes, args.n_classes])
     # gt: axis 0, pred: axis 1
     for (gt, pd) in zip(ylabel, ypred):

@@ -76,6 +76,8 @@ def parse_args():
                         help='number of cluster for k-means (default: 10000)')
     parser.add_argument('--nmb_category', type=int, default=3,
                         help='number of ground truth classes(category)')
+    parser.add_argument('--n_classes', type=int, default=3,
+                        help='number of ground truth classes(category)')
     parser.add_argument('--lr_Adam', default=3e-5, type=float,
                         help='learning rate (default: 1e-4)')
     parser.add_argument('--lr_SGD', default=5e-3, type=float,
@@ -121,29 +123,30 @@ def parse_args():
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
-
+    parser.add_argument('--f1_avg', type=str, default='weighted', help='the way computing f1-score')
     return parser.parse_args(args=[])
 
 
 # def test_analysis(predictions, predictions_mat):
 #     path_to_echograms = paths.path_to_echograms()
-#     labels = torch.load(os.path.join(path_to_echograms, 'label_TEST_60_after_transformation.pt'))
-#     keep_test_idx = np.where(labels > -1)
-#     labels_vec = labels[keep_test_idx]
+#     labels_origin = torch.load(os.path.join(path_to_echograms, 'label_TEST_60_after_transformation.pt'))
+#     if np.shape(predictions_mat) == (60, 256, 256, 3):
+#         predictions_mat = predictions_mat.transpose(0, 3, 1, 2)
+#     keep_test_idx = np.where(labels_origin > -1)
+#     labels_vec = labels_origin[keep_test_idx]
 #     predictions_vec = predictions[keep_test_idx]
 #     predictions_mat_sampled = predictions_mat[keep_test_idx[0], :, keep_test_idx[1], keep_test_idx[2]]
 #     fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
 #     prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
 #     acc_bg, acc_se, acc_ot = prob_mat.diagonal()
-#     print('\n\n#############################################')
-#     print('#############################################')
-#     print('###############   TEST   ###################')
-#     print(
-#         'Epoch {0:3d} \t  Accuracy bg[0]: {1:.3f} \t Accuracy se[1]: {2:.3f} \t Accuracy ot[2]: {3:.3f}, Loss {4:.3f}'.format(
-#             epoch, acc_bg, acc_se, acc_ot, running_loss_test.avg))
-#     print('#############################################')
-#     print('#############################################\n\n')
-#
+#     # print('\n\n#############################################')
+#     # print('#############################################')
+#     # print('###############   TEST   ###################')
+#     # print(
+#     #     'Epoch {0:3d} \t  Accuracy bg[0]: {1:.3f} \t Accuracy se[1]: {2:.3f} \t Accuracy ot[2]: {3:.3f}'.format(
+#     #         epoch, acc_bg, acc_se, acc_ot))
+#     # print('#############################################')
+#     # print('#############################################\n\n')
 #     return
 
 
