@@ -460,6 +460,7 @@ def main(args):
         test_softmax_large_2019 = rebuild_pred_patch(test_pred_softmax_2019)
         test_label_large_2019 = rebuild_pred_patch(test_label_2019)
 
+        test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args)
 
 
 if __name__ == '__main__':
