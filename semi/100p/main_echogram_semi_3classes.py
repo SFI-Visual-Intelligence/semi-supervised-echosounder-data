@@ -122,7 +122,7 @@ def parse_args():
     parser.add_argument('--pred_2019', type=str, default=os.path.join(current_dir, 'test', '2019'), help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
-    parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
+    parser.add_argument('--semi_ratio', type=float, default=1, help='ratio of the labeled samples')
     parser.add_argument('--f1_avg', type=str, default='weighted', help='the way computing f1-score')
     return parser.parse_args(args=[])
 
