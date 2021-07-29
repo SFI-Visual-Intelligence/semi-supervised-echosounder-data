@@ -48,7 +48,7 @@ from batch.augmentation.add_noise import add_noise_img
 
 from batch.dataset import DatasetImg_for_comparisonP2
 from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2
-
+from samplers_for_comparisonP2 import sampling_echograms_full_for_comparisonP2, sampling_echograms_test_for_comparisonP2, sampling_echograms_2019_for_comparisonP2
 #############
 from batch.dataset import DatasetGrid
 from batch.samplers.sampler_test import SampleFull
