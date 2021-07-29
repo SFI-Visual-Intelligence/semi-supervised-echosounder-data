@@ -64,7 +64,7 @@ def test_for_comparisonP2(dataloader, model, crit, device, args):
         for i, (input_tensor, label) in enumerate(dataloader):
             input_tensor = torch.squeeze(input_tensor)
             label = torch.squeeze(label)
-            input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.float))
+            input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.double))
             label_var = torch.autograd.Variable(label.to(device))
             output = model(input_var)
             loss = crit(output, label_var.long())
@@ -199,7 +199,7 @@ def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit_pseudo, cri
     for i, (input_tensor, label) in enumerate(semi_loader):
         input_tensor = torch.squeeze(input_tensor)
         label = torch.squeeze(label)
-        input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.float))
+        input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.double))
         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
 
         output = model(input_var)
