@@ -38,6 +38,7 @@ sys.path.append(os.path.join(current_dir, '..', '..', 'deepcluster'))
 import paths
 import clustering
 import models
+from tools import zip_img_label, flatten_list, rebuild_input_patch, rebuild_pred_patch
 from util import AverageMeter, Logger, UnifLabelSampler
 from clustering import preprocess_features
 from batch.augmentation.flip_x_axis import flip_x_axis_img
@@ -46,6 +47,7 @@ from batch.augmentation.add_noise import add_noise_img
 # from batch.dataset import DatasetImgUnbal
 
 from batch.dataset import DatasetImg_for_comparisonP2
+from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2
 
 #############
 from batch.dataset import DatasetGrid
@@ -60,6 +62,8 @@ from batch.label_transform_functions.index_0_1_27_for_comparisonP2 import index_
 from batch.label_transform_functions.relabel_with_threshold_morph_close_for_comparisonP2 import relabel_with_threshold_morph_close_for_comparisonP2
 from batch.label_transform_functions.seabed_checker_for_comparisonP2 import seabed_checker_for_comparisonP2
 from classifier_linearSVC import SimpleClassifier
+
+
 
 def parse_args():
     current_dir = os.getcwd()
@@ -122,37 +126,6 @@ def parse_args():
 
     return parser.parse_args(args=[])
 
-def zip_img_label(img_tensors, labels):
-    img_label_pair = []
-    for i, zips in enumerate(zip(img_tensors, labels)):
-        img_label_pair.append(zips)
-    print('num_pairs: ', len(img_label_pair))
-    return img_label_pair
-
-def flatten_list(nested_list):
-    flatten = []
-    for list in nested_list:
-        flatten.extend(list)
-    return flatten
-
-def rebuild_input_patch(input_tensors_te, indim=32, outdim=256):
-    # inp.shape = (N * 64, 4, 32, 32)
-    # out.shape = (N, 4, 256, 256)
-    # order: 0 - 7 // 8 - 15 ...
-    N = len(input_tensors_te)//64
-    inp_res = np.reshape(input_tensors_te, (N, 64, 4, 32, 32))
-    patch_per_col = outdim // indim
-    reshaped_te = []
-    for inp in inp_res:
-        for rowidx in range(patch_per_col):
-            rowcon = np.concatenate(inp[rowidx * patch_per_col: (rowidx + 1)*patch_per_col], axis=-1)
-            if rowidx == 0:
-                colcon = rowcon
-            else:
-                colcon = np.concatenate([colcon, rowcon], axis=1)
-        reshaped_te.append(colcon)
-    return reshaped_te
-
 
 def test_analysis(labels, predictions, predictions_mat):
     keep_test_idx = np.where(labels > -1)
@@ -162,281 +135,8 @@ def test_analysis(labels, predictions, predictions_mat):
     fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
     prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
     acc_bg, acc_se, acc_ot = prob_mat.diagonal()
+    return
 
-
-def rebuild_pred_patch(inp, patch_len=32, outdim=256):
-    count_patch = outdim//patch_len
-    N = len(inp) // count_patch ** 2
-    if len(np.shape(inp)) == 2:
-        inp_sqr = np.reshape(inp, (N, count_patch, count_patch, 3))
-        out_sqr = np.zeros((N, outdim, outdim, 3))
-    elif len(np.shape(inp)) == 1:
-        inp_sqr = np.reshape(inp, (N, count_patch, count_patch))
-        out_sqr = np.zeros((N, outdim, outdim))
-
-    for n, (in_one_sqr, out_one_sqr) in enumerate(zip(inp_sqr, out_sqr)):
-        for row in range(8):
-            for col in range(8):
-                dupl = np.tile(in_one_sqr[row][col], (patch_len, patch_len)).reshape(patch_len, patch_len, -1)
-                dupl = np.squeeze(dupl)
-                out_one_sqr[row * patch_len: (row + 1) * patch_len, col * patch_len: (col + 1) * patch_len] = dupl
-    return out_sqr
-
-
-def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_category, epoch, device, args):
-    #############################################################
-    # Supervised learning
-    supervised_losses = AverageMeter()
-    supervised_output_save = []
-    supervised_label_save = []
-    for i, (input_tensor, label) in enumerate(loader):
-        input_tensor = torch.squeeze(input_tensor)
-        label = torch.squeeze(label)
-        input_var = torch.autograd.Variable(input_tensor.to(device))
-        label_var = torch.autograd.Variable(label.to(device, non_blocking=True))
-        output = model(input_var)
-        supervised_loss = crit(output, label_var.long())
-
-        # compute gradient and do SGD step
-        opt_category.zero_grad()
-        opt_body.zero_grad()
-        supervised_loss.backward()
-        opt_category.step()
-        opt_body.step()
-
-        # record loss
-        supervised_losses.update(supervised_loss.item(), input_tensor.size(0))
-
-        # Record accuracy
-        output = torch.argmax(output, axis=1)
-        supervised_output_save.append(output.data.cpu().numpy())
-        supervised_label_save.append(label.data.cpu().numpy())
-
-        if args.verbose and (i % args.display_count) == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'SUPERVISED__Loss: {loss.val:.4f} ({loss.avg:.4f})'
-                  .format(epoch, i, len(loader), loss=supervised_losses))
-
-    supervised_output_flat = flatten_list(supervised_output_save)
-    supervised_label_flat = flatten_list(supervised_label_save)
-    supervised_accu_list = [out == lab for (out, lab) in zip(supervised_output_flat, supervised_label_flat)]
-    supervised_accuracy = sum(supervised_accu_list) / len(supervised_accu_list)
-    return supervised_losses.avg, supervised_accuracy
-
-
-def test_for_comparisonP2(dataloader, model, crit, device, args):
-    if args.verbose:
-        print('Test')
-    test_losses = AverageMeter()
-    model.eval()
-
-    test_output_save = []
-    test_out_softmax_save = []
-    test_label_save = []
-    with torch.no_grad():
-        for i, (input_tensor, label) in enumerate(dataloader):
-            input_tensor = torch.squeeze(input_tensor)
-            label = torch.squeeze(label)
-            input_var = torch.autograd.Variable(input_tensor.to(device))
-            label_var = torch.autograd.Variable(label.to(device))
-            output = model(input_var)
-            loss = crit(output, label_var.long())
-            test_losses.update(loss.item(), input_tensor.size(0))
-            pred_mat = F.softmax(output, dim=1)
-
-            output_argmax = torch.argmax(output, axis=1)
-            test_out_softmax_save.append(pred_mat.data.cpu().numpy())
-            test_output_save.append(output_argmax.data.cpu().numpy())
-            test_label_save.append(label.data.cpu().numpy())
-
-            if args.verbose and (i % args.display_count) == 0:
-                print('{0} / {1}\t'
-                      'TEST_Loss: {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(dataloader), loss=test_losses))
-
-    test_out_softmax_flat = flatten_list(test_out_softmax_save)
-    output_flat = flatten_list(test_output_save)
-    label_flat = flatten_list(test_label_save)
-    accu_list = [out == lab for (out, lab) in zip(output_flat, label_flat)]
-    test_accuracy = sum(accu_list) / len(accu_list)
-    return test_losses.avg, test_accuracy, output_flat, label_flat, test_out_softmax_flat
-
-
-def compute_features_for_comparisonP2(dataloader, model, N, device, args):
-    if args.verbose:
-        print('Compute features')
-    batch_time = AverageMeter()
-    model.eval()
-    # discard the label information in the dataloader
-    input_tensors = []
-    labels = []
-    with torch.no_grad():
-         for i, (input_tensor, label) in enumerate(dataloader):
-            input_tensor = torch.squeeze(input_tensor)
-            label = torch.squeeze(label)
-            end = time.time()
-            input_tensor.double()
-            input_var = torch.autograd.Variable(input_tensor.to(device))
-            aux = model(input_var).data.cpu().numpy()
-
-            if i == 0:
-                features = np.zeros((N, aux.shape[1]), dtype='float32')
-
-            aux = aux.astype('float32')
-            if i < len(dataloader) - 1:
-                features[i * args.for_comparisonP2_batchsize: (i + 1) * args.for_comparisonP2_batchsize] = aux
-            else:
-                # special treatment for final batch
-                features[i * args.for_comparisonP2_batchsize:] = aux
-            input_tensors.append(input_tensor.data.cpu().numpy())
-            labels.append(label.data.cpu().numpy())
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            if args.verbose and (i % args.display_count) == 0:
-                print('{0} / {1}\t'
-                      'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})'
-                      .format(i, len(dataloader), batch_time=batch_time))
-         input_tensors = np.concatenate(input_tensors, axis=0)
-         labels = np.concatenate(labels, axis=0)
-         return features, input_tensors, labels
-
-
-def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit, opt_body, opt_category, epoch, device, args):
-    batch_time = AverageMeter()
-    losses = AverageMeter()
-    semi_losses = AverageMeter()
-
-    # switch to train mode
-    model.train()
-    end = time.time()
-    for i, ((input_tensor, label), pseudo_target, imgidx) in enumerate(loader):
-
-        input_var = torch.autograd.Variable(input_tensor.to(device))
-        pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
-        output = model(input_var)
-        loss = crit(output, pseudo_target_var.long())
-
-        # record loss
-        losses.update(loss.item(), input_tensor.size(0))
-
-        # compute gradient and do SGD step
-        opt_body.zero_grad()
-        loss.backward()
-        opt_body.step()
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if args.verbose and (i % args.display_count) == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'Time: {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'PSEUDO_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-                  .format(epoch, i, len(loader), batch_time=batch_time, loss=losses))
-
-    '''SUPERVISION with a few labelled dataset'''
-    model.cluster_layer = None
-    model.category_layer = nn.Sequential(
-        nn.Linear(fd, args.nmb_category),
-        nn.Softmax(dim=1),
-    )
-    model.category_layer[0].weight.data.normal_(0, 0.01)
-    model.category_layer[0].bias.data.zero_()
-    model.category_layer = model.category_layer.double()
-    model.category_layer.to(device)
-
-    category_save = os.path.join(args.exp, 'category_layer.pth.tar')
-    if os.path.isfile(category_save):
-        category_layer_param = torch.load(category_save)
-        model.category_layer.load_state_dict(category_layer_param)
-
-    semi_output_save = []
-    semi_label_save = []
-    for i, (input_tensor, label) in enumerate(semi_loader):
-        input_tensor = torch.squeeze(input_tensor)
-        label = torch.squeeze(label)
-        input_var = torch.autograd.Variable(input_tensor.to(device))
-        label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
-
-        output = model(input_var)
-        semi_loss = crit(output, label_var.long())
-
-        # compute gradient and do SGD step
-        opt_category.zero_grad()
-        opt_body.zero_grad()
-        semi_loss.backward()
-        opt_category.step()
-        opt_body.step()
-
-        # record loss
-        semi_losses.update(semi_loss.item(), input_tensor.size(0))
-
-        # Record accuracy
-        output = torch.argmax(output, axis=1)
-        semi_output_save.append(output.data.cpu().numpy())
-        semi_label_save.append(label.data.cpu().numpy())
-
-        # measure elapsed time
-        if args.verbose and (i % args.display_count) == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
-                  'SEMI_Loss: {loss.val:.4f} ({loss.avg:.4f})'
-                  .format(epoch, i, len(semi_loader), loss=semi_losses))
-
-    semi_output_flat = flatten_list(semi_output_save)
-    semi_label_flat = flatten_list(semi_label_save)
-    semi_accu_list = [out == lab for (out, lab) in zip(semi_output_flat, semi_label_flat)]
-    semi_accuracy = sum(semi_accu_list)/len(semi_accu_list)
-    return losses.avg, semi_losses.avg, semi_accuracy
-
-
-def sampling_echograms_full_for_comparisonP2(args):
-    path_to_echograms = paths.path_to_echograms()
-    data = torch.load(os.path.join(path_to_echograms, 'data_tr_TEST_200.pt'))
-    label = torch.load(os.path.join(path_to_echograms, 'label_tr_TEST_200.pt'))
-    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
-    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
-
-    semi_count = int(len(data) * args.semi_ratio)
-
-    dataset_cp = DatasetImg_for_comparisonP2(data=data,
-                                          label=label,
-                                          label_transform_function=label_transform,
-                                          data_transform_function=data_transform)
-
-    dataset_semi = DatasetImg_for_comparisonP2(data=data[:semi_count],
-                                          label=label[:semi_count],
-                                          label_transform_function=label_transform,
-                                          data_transform_function=data_transform)
-
-    return dataset_cp, dataset_semi
-
-
-def sampling_echograms_test_for_comparisonP2():
-    path_to_echograms = paths.path_to_echograms()
-    data = torch.load(os.path.join(path_to_echograms, 'data_te_TEST_60.pt'))
-    label = torch.load(os.path.join(path_to_echograms, 'label_te_TEST_60.pt'))
-    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
-    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
-
-    dataset = DatasetImg_for_comparisonP2(data=data,
-                                          label=label,
-                                          label_transform_function=label_transform,
-                                          data_transform_function=data_transform)
-    return dataset
-
-
-def sampling_echograms_2019_for_comparisonP2(echogram_idx=2, path_to_echograms=None):
-    if path_to_echograms == None:
-        path_to_echograms = paths.path_to_echograms()
-    data, label, patch_loc = torch.load(os.path.join(path_to_echograms, 'data_label_patch_loc_te_2019_%d.pt' % echogram_idx))
-    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
-    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
-
-    dataset_2019 = DatasetImg_for_comparisonP2(data=data,
-                                          label=label,
-                                          label_transform_function=label_transform,
-                                          data_transform_function=data_transform)
-    return dataset_2019, patch_loc
 
 
 def main(args):
