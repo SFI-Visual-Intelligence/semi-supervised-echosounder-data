@@ -34,13 +34,13 @@ current_dir = os.getcwd()
 
 sys.path.append(os.path.join(current_dir, '..', '..', 'deepcluster'))
 
-from confusion_matrix import conf_mat, roc_curve_macro
+from confusion_matrix import conf_mat, roc_curve_macro, plot_conf, plot_conf_best, plot_macro, plot_macro_best
 import paths
 import clustering
 import models
 from tools import zip_img_label, flatten_list, rebuild_input_patch, rebuild_pred_patch
 from util import AverageMeter, Logger, UnifLabelSampler
-from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2
+from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2, test_analysis
 from samplers_for_comparisonP2 import sampling_echograms_full_for_comparisonP2, sampling_echograms_test_for_comparisonP2, sampling_echograms_2019_for_comparisonP2
 
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_for_comparisonP2
@@ -60,7 +60,6 @@ from batch.augmentation.add_noise import add_noise_img
 from batch.dataset import DatasetImg
 from batch.dataset import DatasetImgUnbal
 from classifier_linearSVC import SimpleClassifier
-
 
 
 def parse_args():
@@ -102,7 +101,7 @@ def parse_args():
                         help='mini-batch size (default: 16)')
     parser.add_argument('--pca', default=32, type=int,
                         help='pca dimension (default: 128)')
-    parser.add_argument('--checkpoints', type=int, default=20,
+    parser.add_argument('--checkpoints', type=int, default=50,
                         help='how many iterations between two checkpoints (default: 25000)')
     parser.add_argument('--display_count', type=int, default=200,
                         help='display iterations for every <display_count> numbers')
@@ -127,30 +126,6 @@ def parse_args():
     return parser.parse_args(args=[])
 
 
-# def test_analysis(predictions, predictions_mat):
-#     path_to_echograms = paths.path_to_echograms()
-#     labels_origin = torch.load(os.path.join(path_to_echograms, 'label_TEST_60_after_transformation.pt'))
-#     if np.shape(predictions_mat) == (60, 256, 256, 3):
-#         predictions_mat = predictions_mat.transpose(0, 3, 1, 2)
-#     keep_test_idx = np.where(labels_origin > -1)
-#     labels_vec = labels_origin[keep_test_idx]
-#     predictions_vec = predictions[keep_test_idx]
-#     predictions_mat_sampled = predictions_mat[keep_test_idx[0], :, keep_test_idx[1], keep_test_idx[2]]
-#     fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
-#     prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
-#     acc_bg, acc_se, acc_ot = prob_mat.diagonal()
-#     # print('\n\n#############################################')
-#     # print('#############################################')
-#     # print('###############   TEST   ###################')
-#     # print(
-#     #     'Epoch {0:3d} \t  Accuracy bg[0]: {1:.3f} \t Accuracy se[1]: {2:.3f} \t Accuracy ot[2]: {3:.3f}'.format(
-#     #         epoch, acc_bg, acc_se, acc_ot))
-#     # print('#############################################')
-#     # print('#############################################\n\n')
-#     return
-
-
-
 def main(args):
     # fix random seeds
     torch.manual_seed(args.seed)
@@ -158,8 +133,8 @@ def main(args):
     np.random.seed(args.seed)
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
-    criterion = nn.CrossEntropyLoss(ignore_index=-1)
-    cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
+    criterion_pseudo = nn.CrossEntropyLoss()
+    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device))
 
     # CNN
     if args.verbose:
@@ -236,7 +211,6 @@ def main(args):
     ########################################'''
 
     print('Sample echograms.')
-    # dataset_cp, dataset_semi = sampling_echograms_full(args) # Patch classification (paper #1)
     dataset_cp, dataset_semi = sampling_echograms_full_for_comparisonP2(args) # For comparison (paper #2)
 
     dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
@@ -288,8 +262,6 @@ def main(args):
             for key in list(copy_checkpoint_state_dict):
                 if 'cluster_layer' in key:
                     del copy_checkpoint_state_dict[key]
-                # if 'category_layer' in key:
-                #     del copy_checkpoint_state_dict[key]
             checkpoint['state_dict'] = copy_checkpoint_state_dict
             model.load_state_dict(checkpoint['state_dict'])
             optimizer_body.load_state_dict(checkpoint['optimizer_body'])
@@ -314,17 +286,6 @@ def main(args):
         if not os.path.isdir(dir_to_make):
             os.makedirs(dir_to_make)
 
-    if os.path.isfile(os.path.join(args.exp, 'loss_collect.pickle')):
-        with open(os.path.join(args.exp, 'loss_collect.pickle'), "rb") as f:
-            loss_collect = pickle.load(f)
-    else:
-        loss_collect = [[], [], [], [], [], [], [], [], []]
-
-    if os.path.isfile(os.path.join(args.exp, 'nmi_collect.pickle')):
-        with open(os.path.join(args.exp, 'nmi_collect.pickle'), "rb") as ff:
-            nmi_save = pickle.load(ff)
-    else:
-        nmi_save = []
     '''
     #######################
     #######################
@@ -332,7 +293,6 @@ def main(args):
     #######################
     #######################'''
     for epoch in range(args.start_epoch, args.epochs):
-        end = time.time()
         print('#####################  Start training at Epoch %d ################'% epoch)
         model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
         model.cluster_layer = None
@@ -346,7 +306,6 @@ def main(args):
         #######################
         '''
         print('Cluster the features')
-        # features_train, input_tensors_train, labels_train = compute_features(dataloader_cp, model, len(dataset_cp), device=device, args=args)
         features_train, input_tensors_train, labels_train = compute_features_for_comparisonP2(dataloader_cp, model, len(dataset_cp) * args.for_comparisonP2_batchsize, device=device, args=args)
         clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
 
@@ -381,15 +340,6 @@ def main(args):
             pin_memory=True,
         )
 
-        # train_dataloader = torch.utils.data.DataLoader(
-        #     train_dataset,
-        #     batch_size=args.batch
-        #     shuffle=False,
-        #     num_workers=args.workers,
-        #     sampler=sampler_train,
-        #     pin_memory=True,
-        # )
-
         '''
         ####################################################################
         ####################################################################
@@ -416,11 +366,15 @@ def main(args):
 
         ''' train network with clusters as pseudo-labels '''
         with torch.autograd.set_detect_anomaly(True):
-            pseudo_loss, semi_loss, semi_accuracy = semi_train_for_comparisonP2(train_dataloader, dataloader_semi, model, fd, criterion,
-                                                               optimizer_body, optimizer_category, epoch, device=device, args=args)
-
+            pseudo_loss, semi_loss, semi_accuracy = semi_train_for_comparisonP2(train_dataloader,
+                                                                                dataloader_semi,
+                                                                                model, fd,
+                                                                                criterion_pseudo,
+                                                                                criterion_sup,
+                                                                                optimizer_body, optimizer_category,
+                                                                                epoch, device=device, args=args)
         # save checkpoint
-        if (epoch + 1) % args.checkpoints == 0:
+        if epoch % args.checkpoints == 0:
             path = os.path.join(
                 args.exp,
                 'checkpoints',
@@ -428,7 +382,7 @@ def main(args):
             )
             if args.verbose:
                 print('Save checkpoint at: {0}'.format(path))
-            torch.save({'epoch': epoch + 1,
+            torch.save({'epoch': epoch,
                         'arch': args.arch,
                         'state_dict': model.state_dict(),
                         'optimizer_body': optimizer_body.state_dict(),
@@ -443,69 +397,57 @@ def main(args):
         ##############
         ##############
         '''
-        test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion, device, args)
-
+        test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion_sup, device, args)
         test_pred_large = rebuild_pred_patch(test_pred)
-        test_label_large = rebuild_pred_patch(test_label)
         test_softmax_large = rebuild_pred_patch(test_pred_softmax)
+        test_label_large = rebuild_pred_patch(test_label)
 
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'test', 'pred', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred, test_label, test_pred_softmax], f)
+            with open(os.path.join(args.exp, 'test', 'pred', 'pred_softmax_label_epoch_%d_te.pickle' % epoch), "wb") as f:
+                pickle.dump([test_pred_large, test_softmax_large, test_label_large], f)
 
+        fpr, \
+        tpr, \
+        roc_auc, \
+        roc_auc_macro, \
+        prob_mat, \
+        mat, \
+        f1_score, \
+        kappa, \
+        bg_accu, \
+        se_accu, \
+        ot_accu = test_analysis(test_pred_large, test_softmax_large, epoch, args)
 
-
-        if args.verbose:
-            print('###### Epoch [{0}] ###### \n'
-                  'Time: {1:.3f} s\n'
-                  'Pseudo tr_loss: {2:.3f} \n'
-                  'SEMI tr_loss: {3:.3f} \n'
-                  'TEST loss: {4:.3f} \n'
-                  'TEST_unbal loss: {5:.3f} \n'
-                  'Clustering loss: {6:.3f} \n\n'
-                  'SEMI accu: {7:.3f} \n'
-                  'TEST accu: {8:.3f} \n'
-                  'TEST_unbal accu: {9:.3f} \n'
-                  .format(epoch, time.time() - end, pseudo_loss, semi_loss,
-                          test_loss, test_loss, clustering_loss, semi_accuracy, test_accuracy, test_accuracy))
-            try:
-                nmi = normalized_mutual_info_score(
-                    clustering.arrange_clustering(deepcluster.images_lists),
-                    clustering.arrange_clustering(cluster_log.data[-1])
-                )
-                nmi_save.append(nmi)
-                print('NMI against previous assignment: {0:.3f}'.format(nmi))
-                with open(os.path.join(args.exp, 'nmi_collect.pickle'), "wb") as ff:
-                    pickle.dump(nmi_save, ff)
-            except IndexError:
-                pass
-            print('####################### \n')
-
-        # save cluster assignments
-        cluster_log.log(deepcluster.images_lists)
-
-        # save running checkpoint
-        torch.save({'epoch': epoch + 1,
-                    'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    'optimizer_body': optimizer_body.state_dict(),
-                    'optimizer_category': optimizer_category.state_dict(),
-                    },
-                   os.path.join(args.exp, 'checkpoint.pth.tar'))
-        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
-
-        loss_collect[0].append(epoch)
-        loss_collect[1].append(pseudo_loss)
-        loss_collect[2].append(semi_loss)
-        loss_collect[3].append(clustering_loss)
-        loss_collect[4].append(test_loss)
-        loss_collect[5].append(test_loss)
-        loss_collect[6].append(semi_accuracy)
-        loss_collect[7].append(test_accuracy)
-        loss_collect[8].append(test_accuracy)
-        with open(os.path.join(args.exp, 'loss_collect.pickle'), "wb") as f:
-            pickle.dump(loss_collect, f)
+        if os.path.isfile(os.path.join(args.exp, 'records_te_epoch.pth.tar')):
+            records_te_epoch = torch.load(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
+        else:
+            records_te_epoch = {'epoch': [],
+                                'fpr': [],
+                                'tpr': [],
+                                'roc_auc': [],
+                                'roc_auc_macro': [],
+                                'prob_mat': [],
+                                'mat': [],
+                                'f1_score': [],
+                                'kappa': [],
+                                'BG_accu_epoch': [],
+                                'SE_accu_epoch': [],
+                                'OT_accu_epoch': [],
+                                }
+        records_te_epoch['epoch'].append(epoch)
+        records_te_epoch['fpr'].append(fpr)
+        records_te_epoch['tpr'].append(tpr)
+        records_te_epoch['roc_auc'].append(roc_auc)
+        records_te_epoch['roc_auc_macro'].append(roc_auc_macro)
+        records_te_epoch['prob_mat'].append(prob_mat)
+        records_te_epoch['mat'].append(mat)
+        records_te_epoch['f1_score'].append(f1_score)
+        records_te_epoch['kappa'].append(kappa)
+        records_te_epoch['BG_accu_epoch'].append(bg_accu)
+        records_te_epoch['SE_accu_epoch'].append(se_accu)
+        records_te_epoch['OT_accu_epoch'].append(ot_accu)
+        torch.save(records_te_epoch, os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
 
 
 
@@ -929,3 +871,77 @@ if __name__ == '__main__':
     #         dir_to_make = os.path.join(dir_bal, dir_2)
     #         if not os.path.isdir(dir_to_make):
     #             os.makedirs(dir_to_make)
+
+# if args.verbose:
+#     print('###### Epoch [{0}] ###### \n'
+#           'Time: {1:.3f} s\n'
+#           'Pseudo tr_loss: {2:.3f} \n'
+#           'SEMI tr_loss: {3:.3f} \n'
+#           'TEST loss: {4:.3f} \n'
+#           'TEST_unbal loss: {5:.3f} \n'
+#           'Clustering loss: {6:.3f} \n\n'
+#           'SEMI accu: {7:.3f} \n'
+#           'TEST accu: {8:.3f} \n'
+#           'TEST_unbal accu: {9:.3f} \n'
+#           .format(epoch, time.time() - end, pseudo_loss, semi_loss,
+#                   test_loss, test_loss, clustering_loss, semi_accuracy, test_accuracy, test_accuracy))
+#     try:
+#         nmi = normalized_mutual_info_score(
+#             clustering.arrange_clustering(deepcluster.images_lists),
+#             clustering.arrange_clustering(cluster_log.data[-1])
+#         )
+#         nmi_save.append(nmi)
+#         print('NMI against previous assignment: {0:.3f}'.format(nmi))
+#         with open(os.path.join(args.exp, 'nmi_collect.pickle'), "wb") as ff:
+#             pickle.dump(nmi_save, ff)
+#     except IndexError:
+#         pass
+#     print('####################### \n')
+#
+# # save cluster assignments
+# cluster_log.log(deepcluster.images_lists)
+#
+# # save running checkpoint
+# torch.save({'epoch': epoch + 1,
+#             'arch': args.arch,
+#             'state_dict': model.state_dict(),
+#             'optimizer_body': optimizer_body.state_dict(),
+#             'optimizer_category': optimizer_category.state_dict(),
+#             },
+#            os.path.join(args.exp, 'checkpoint.pth.tar'))
+# torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
+#
+# loss_collect[0].append(epoch)
+# loss_collect[1].append(pseudo_loss)
+# loss_collect[2].append(semi_loss)
+# loss_collect[3].append(clustering_loss)
+# loss_collect[4].append(test_loss)
+# loss_collect[5].append(test_loss)
+# loss_collect[6].append(semi_accuracy)
+# loss_collect[7].append(test_accuracy)
+# loss_collect[8].append(test_accuracy)
+# with open(os.path.join(args.exp, 'loss_collect.pickle'), "wb") as f:
+#     pickle.dump(loss_collect, f)
+
+
+# train_dataloader = torch.utils.data.DataLoader(
+#     train_dataset,
+#     batch_size=args.batch
+#     shuffle=False,
+#     num_workers=args.workers,
+#     sampler=sampler_train,
+#     pin_memory=True,
+# )
+
+    # cluster_log = Logger(os.path.join(args.exp, 'clusters.pickle'))
+    # if os.path.isfile(os.path.join(args.exp, 'loss_collect.pickle')):
+    #     with open(os.path.join(args.exp, 'loss_collect.pickle'), "rb") as f:
+    #         loss_collect = pickle.load(f)
+    # else:
+    #     loss_collect = [[], [], [], [], [], [], [], [], []]
+    #
+    # if os.path.isfile(os.path.join(args.exp, 'nmi_collect.pickle')):
+    #     with open(os.path.join(args.exp, 'nmi_collect.pickle'), "rb") as ff:
+    #         nmi_save = pickle.load(ff)
+    # else:
+    #     nmi_save = []

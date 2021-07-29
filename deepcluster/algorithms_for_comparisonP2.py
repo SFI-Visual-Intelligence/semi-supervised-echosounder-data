@@ -6,7 +6,8 @@ from tools import zip_img_label, flatten_list, rebuild_input_patch, rebuild_pred
 import torch.nn.functional as F
 import time
 import os
-
+import paths
+from confusion_matrix import conf_mat, roc_curve_macro, plot_conf, plot_conf_best, plot_macro, plot_macro_best
 
 
 def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_category, epoch, device, args):
@@ -86,6 +87,23 @@ def test_for_comparisonP2(dataloader, model, crit, device, args):
     test_accuracy = sum(accu_list) / len(accu_list)
     return test_losses.avg, test_accuracy, output_flat, label_flat, test_out_softmax_flat
 
+def test_analysis(predictions, predictions_mat, epoch, args):
+    path_to_echograms = paths.path_to_echograms()
+    labels_origin = torch.load(os.path.join(path_to_echograms, 'label_TEST_60_after_transformation.pt'))
+    if np.shape(predictions_mat) == (60, 256, 256, 3):
+        predictions_mat = predictions_mat.transpose(0, 3, 1, 2)
+    keep_test_idx = np.where(labels_origin > -1)
+    labels_vec = labels_origin[keep_test_idx]
+    predictions_vec = predictions[keep_test_idx]
+    predictions_mat_sampled = predictions_mat[keep_test_idx[0], :, keep_test_idx[1], keep_test_idx[2]]
+    fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
+    prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
+    acc_bg, acc_se, acc_ot = prob_mat.diagonal()
+    plot_macro(fpr, tpr, roc_auc, epoch, args)
+    plot_conf(epoch, prob_mat, mat, f1_score, kappa, args)
+    return fpr, tpr, roc_auc, roc_auc_macro, prob_mat, mat, f1_score, kappa, acc_bg, acc_se, acc_ot
+
+
 
 def compute_features_for_comparisonP2(dataloader, model, N, device, args):
     if args.verbose:
@@ -127,7 +145,7 @@ def compute_features_for_comparisonP2(dataloader, model, N, device, args):
          return features, input_tensors, labels
 
 
-def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit, opt_body, opt_category, epoch, device, args):
+def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit_pseudo, crit_sup, opt_body, opt_category, epoch, device, args):
     batch_time = AverageMeter()
     losses = AverageMeter()
     semi_losses = AverageMeter()
@@ -140,7 +158,7 @@ def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit, opt_body, 
         input_var = torch.autograd.Variable(input_tensor.to(device))
         pseudo_target_var = torch.autograd.Variable(pseudo_target.to(device,  non_blocking=True))
         output = model(input_var)
-        loss = crit(output, pseudo_target_var.long())
+        loss = crit_pseudo(output, pseudo_target_var.long())
 
         # record loss
         losses.update(loss.item(), input_tensor.size(0))
@@ -185,7 +203,7 @@ def semi_train_for_comparisonP2(loader, semi_loader, model, fd, crit, opt_body, 
         label_var = torch.autograd.Variable(label.to(device,  non_blocking=True))
 
         output = model(input_var)
-        semi_loss = crit(output, label_var.long())
+        semi_loss = crit_sup(output, label_var.long())
 
         # compute gradient and do SGD step
         opt_category.zero_grad()
