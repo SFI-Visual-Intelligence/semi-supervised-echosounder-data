@@ -9,8 +9,6 @@ import os
 import pickle
 import sys
 import time
-import copy
-import faiss
 import numpy as np
 from sklearn.metrics.cluster import normalized_mutual_info_score
 import torch
@@ -24,6 +22,8 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
+import copy
+import faiss
 
 
 current_dir = os.getcwd()
@@ -40,27 +40,25 @@ import clustering
 import models
 from tools import zip_img_label, flatten_list, rebuild_input_patch, rebuild_pred_patch
 from util import AverageMeter, Logger, UnifLabelSampler
-from clustering import preprocess_features
-from batch.augmentation.flip_x_axis import flip_x_axis_img
-from batch.augmentation.add_noise import add_noise_img
-# from batch.dataset import DatasetImg
-# from batch.dataset import DatasetImgUnbal
-
-from batch.dataset import DatasetImg_for_comparisonP2
 from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2
 from samplers_for_comparisonP2 import sampling_echograms_full_for_comparisonP2, sampling_echograms_test_for_comparisonP2, sampling_echograms_2019_for_comparisonP2
-#############
-from batch.dataset import DatasetGrid
-from batch.samplers.sampler_test import SampleFull
-from batch.samplers.get_all_patches import GetAllPatches
-from data.echogram import Echogram
-#############
+
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_for_comparisonP2
 from batch.data_transform_functions.db_with_limits import db_with_limits_for_comparisonP2
 from batch.combine_functions import CombineFunctions
 from batch.label_transform_functions.index_0_1_27_for_comparisonP2 import index_0_1_27_for_comparisonP2
 from batch.label_transform_functions.relabel_with_threshold_morph_close_for_comparisonP2 import relabel_with_threshold_morph_close_for_comparisonP2
 from batch.label_transform_functions.seabed_checker_for_comparisonP2 import seabed_checker_for_comparisonP2
+from batch.dataset import DatasetImg_for_comparisonP2
+from batch.dataset import DatasetGrid
+from batch.samplers.sampler_test import SampleFull
+from batch.samplers.get_all_patches import GetAllPatches
+from data.echogram import Echogram
+from clustering import preprocess_features
+from batch.augmentation.flip_x_axis import flip_x_axis_img
+from batch.augmentation.add_noise import add_noise_img
+from batch.dataset import DatasetImg
+from batch.dataset import DatasetImgUnbal
 from classifier_linearSVC import SimpleClassifier
 
 
@@ -127,15 +125,26 @@ def parse_args():
     return parser.parse_args(args=[])
 
 
-def test_analysis(labels, predictions, predictions_mat):
-    keep_test_idx = np.where(labels > -1)
-    labels_vec = labels[keep_test_idx]
-    predictions_vec = predictions[keep_test_idx]
-    predictions_mat_sampled = predictions_mat[keep_test_idx[0], :, keep_test_idx[1], keep_test_idx[2]]
-    fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
-    prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
-    acc_bg, acc_se, acc_ot = prob_mat.diagonal()
-    return
+# def test_analysis(predictions, predictions_mat):
+#     path_to_echograms = paths.path_to_echograms()
+#     labels = torch.load(os.path.join(path_to_echograms, 'label_TEST_60_after_transformation.pt'))
+#     keep_test_idx = np.where(labels > -1)
+#     labels_vec = labels[keep_test_idx]
+#     predictions_vec = predictions[keep_test_idx]
+#     predictions_mat_sampled = predictions_mat[keep_test_idx[0], :, keep_test_idx[1], keep_test_idx[2]]
+#     fpr, tpr, roc_auc, roc_auc_macro = roc_curve_macro(labels_vec, predictions_mat_sampled)
+#     prob_mat, mat, f1_score, kappa = conf_mat(ylabel=labels_vec, ypred=predictions_vec, args=args)
+#     acc_bg, acc_se, acc_ot = prob_mat.diagonal()
+#     print('\n\n#############################################')
+#     print('#############################################')
+#     print('###############   TEST   ###################')
+#     print(
+#         'Epoch {0:3d} \t  Accuracy bg[0]: {1:.3f} \t Accuracy se[1]: {2:.3f} \t Accuracy ot[2]: {3:.3f}, Loss {4:.3f}'.format(
+#             epoch, acc_bg, acc_se, acc_ot, running_loss_test.avg))
+#     print('#############################################')
+#     print('#############################################\n\n')
+#
+#     return
 
 
 
@@ -252,15 +261,15 @@ def main(args):
                                                 pin_memory=True)
 
 
-    dataset_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
-
-    dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
-                                          batch_size=1,
-                                          shuffle=False,
-                                          num_workers=args.workers,
-                                          worker_init_fn=np.random.seed,
-                                          drop_last=False,
-                                          pin_memory=True)
+    # dataset_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
+    #
+    # dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
+    #                                       batch_size=1,
+    #                                       shuffle=False,
+    #                                       num_workers=args.workers,
+    #                                       worker_init_fn=np.random.seed,
+    #                                       drop_last=False,
+    #                                       pin_memory=True)
 
 
     deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
@@ -301,14 +310,6 @@ def main(args):
         dir_to_make = os.path.join(exp_test, dir_2)
         if not os.path.isdir(dir_to_make):
             os.makedirs(dir_to_make)
-
-    # exp_bal = os.path.join(args.exp, 'bal')
-    # exp_unbal = os.path.join(args.exp, 'unbal')
-    # for dir_bal in [exp_bal, exp_unbal]:
-    #     for dir_2 in ['features', 'pca_features', 'pred']:
-    #         dir_to_make = os.path.join(dir_bal, dir_2)
-    #         if not os.path.isdir(dir_to_make):
-    #             os.makedirs(dir_to_make)
 
     if os.path.isfile(os.path.join(args.exp, 'loss_collect.pickle')):
         with open(os.path.join(args.exp, 'loss_collect.pickle'), "rb") as f:
@@ -445,22 +446,12 @@ def main(args):
         test_label_large = rebuild_pred_patch(test_label)
         test_softmax_large = rebuild_pred_patch(test_pred_softmax)
 
-
-
-        print('\n\n#############################################')
-        print('#############################################')
-        print('###############   TEST   ###################')
-        print(
-            'Epoch {0:3d} \t  Accuracy bg[0]: {1:.3f} \t Accuracy se[1]: {2:.3f} \t Accuracy ot[2]: {3:.3f}, Loss {4:.3f}'.format(
-                epoch, acc_bg, acc_se, acc_ot, running_loss_test.avg))
-        print('#############################################')
-        print('#############################################\n\n')
-
-
         '''Save prediction of the test set'''
         if (epoch % args.save_epoch == 0):
             with open(os.path.join(args.exp, 'test', 'pred', 'sup_epoch_%d_te.pickle' % epoch), "wb") as f:
                 pickle.dump([test_pred, test_label, test_pred_softmax], f)
+
+
 
         if args.verbose:
             print('###### Epoch [{0}] ###### \n'
@@ -926,3 +917,12 @@ if __name__ == '__main__':
 #         pickle.dump(cp_epoch_out_te, f)
 #     with open(os.path.join(args.exp, 'test', 'pca_features',  'pca_epoch_%d_te.pickle' % epoch), "wb") as f:
 #         pickle.dump(pca_features_te, f)
+
+
+    # exp_bal = os.path.join(args.exp, 'bal')
+    # exp_unbal = os.path.join(args.exp, 'unbal')
+    # for dir_bal in [exp_bal, exp_unbal]:
+    #     for dir_2 in ['features', 'pca_features', 'pred']:
+    #         dir_to_make = os.path.join(dir_bal, dir_2)
+    #         if not os.path.isdir(dir_to_make):
+    #             os.makedirs(dir_to_make)
