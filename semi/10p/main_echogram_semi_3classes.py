@@ -40,7 +40,7 @@ import clustering
 import models
 from tools import zip_img_label, flatten_list, rebuild_input_patch, rebuild_pred_patch
 from util import AverageMeter, Logger, UnifLabelSampler
-from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2, test_analysis
+from algorithms_for_comparisonP2 import supervised_train_for_comparisonP2, test_for_comparisonP2, compute_features_for_comparisonP2, semi_train_for_comparisonP2, test_analysis, test_and_plot_2019
 from samplers_for_comparisonP2 import sampling_echograms_full_for_comparisonP2, sampling_echograms_test_for_comparisonP2, sampling_echograms_2019_for_comparisonP2
 
 from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_for_comparisonP2
@@ -119,6 +119,7 @@ def parse_args():
     parser.add_argument('--exp', type=str,
                         default=current_dir, help='path to exp folder')
     parser.add_argument('--pred_test', type=str, default=os.path.join(current_dir, 'test', 'pred'), help='path to exp folder')
+    parser.add_argument('--pred_2019', type=str, default=os.path.join(current_dir, 'test', '2019'), help='path to exp folder')
     parser.add_argument('--optimizer', type=str, metavar='OPTIM',
                         choices=['Adam', 'SGD'], default='Adam', help='optimizer_choice (default: Adam)')
     parser.add_argument('--semi_ratio', type=float, default=0.1, help='ratio of the labeled samples')
@@ -279,7 +280,7 @@ def main(args):
         os.makedirs(exp_check)
 
     exp_test = os.path.join(args.exp, 'test')
-    for dir_2 in ['features', 'pca_features', 'pred']:
+    for dir_2 in ['2019', 'pred']:
         dir_to_make = os.path.join(exp_test, dir_2)
         if not os.path.isdir(dir_to_make):
             os.makedirs(dir_to_make)

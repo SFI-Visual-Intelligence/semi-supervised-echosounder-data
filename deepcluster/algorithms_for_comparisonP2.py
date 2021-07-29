@@ -7,7 +7,14 @@ import torch.nn.functional as F
 import time
 import os
 import paths
+import matplotlib.pyplot as plt
 from confusion_matrix import conf_mat, roc_curve_macro, plot_conf, plot_conf_best, plot_macro, plot_macro_best
+from batch.combine_functions import CombineFunctions
+from batch.label_transform_functions.index_0_1_27_for_comparisonP2 import index_0_1_27_for_comparisonP2
+from batch.label_transform_functions.relabel_with_threshold_morph_close_for_comparisonP2 import relabel_with_threshold_morph_close_for_comparisonP2
+from batch.label_transform_functions.seabed_checker_for_comparisonP2 import seabed_checker_for_comparisonP2
+from batch.data_transform_functions.remove_nan_inf import remove_nan_inf_for_comparisonP2
+from batch.data_transform_functions.db_with_limits import db_with_limits_for_comparisonP2
 
 
 def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_category, epoch, device, args):
@@ -103,6 +110,63 @@ def test_analysis(predictions, predictions_mat, epoch, args):
     plot_conf(epoch, prob_mat, mat, f1_score, kappa, args)
     return fpr, tpr, roc_auc, roc_auc_macro, prob_mat, mat, f1_score, kappa, acc_bg, acc_se, acc_ot
 
+def test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args, idx=2):
+    path_to_echograms = paths.path_to_echograms()
+    data_2019, label_2019, patch_loc = torch.load(os.path.join(path_to_echograms, 'data_label_patch_loc_te_2019_%d.pt' % idx))
+    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
+    boxsize = 5
+    plt.figure(figsize=(boxsize * patch_loc[1], boxsize * patch_loc[0] * 4))
+    for i in range(len(data_2019)):
+        l = label_2019[i]
+        d = data_2019[i]
+        d, l = label_transform(d, l)
+        d, l = data_transform(d, l)
+        dim = np.shape(l)
+
+        labels_rgb = np.ones((dim[0], dim[1], 3))
+        sandeel = np.where(l == 1)
+        other = np.where(l == 2)
+        labels_rgb[sandeel[0], sandeel[1], 0] = 0
+        labels_rgb[sandeel[0], sandeel[1], 1] = 0  # sandeel blue
+        labels_rgb[other[0], other[1], 1] = 0
+        labels_rgb[other[0], other[1], 2] = 0  # other red
+
+        pred = test_pred_large_2019[i]
+        pred_rgb = np.ones((dim[0], dim[1], 3))
+        pred_sandeel = np.where(pred == 1)
+        pred_other = np.where(pred == 2)
+        pred_rgb[pred_sandeel[0], pred_sandeel[1], 0] = 0
+        pred_rgb[pred_sandeel[0], pred_sandeel[1], 1] = 0  # sandeel blue
+        pred_rgb[pred_other[0], pred_other[1], 1] = 0
+        pred_rgb[pred_other[0], pred_other[1], 2] = 0  # other red
+
+        lbb = test_label_large_2019[i]
+        lbb_rgb = np.ones((dim[0], dim[1], 3))
+        lbb_sandeel = np.where(lbb == 1)
+        lbb_other = np.where(lbb == 2)
+        lbb_rgb[lbb_sandeel[0], lbb_sandeel[1], 0] = 0
+        lbb_rgb[lbb_sandeel[0], lbb_sandeel[1], 1] = 0  # sandeel blue
+        lbb_rgb[lbb_other[0], lbb_other[1], 1] = 0
+        lbb_rgb[lbb_other[0], lbb_other[1], 2] = 0  # other red
+
+        plt.subplot(patch_loc[0] * 4, patch_loc[1], i + 1)
+        plt.imshow(labels_rgb)
+
+        plt.subplot(patch_loc[0] * 4, patch_loc[1], patch_loc[1] * patch_loc[0] + i + 1)
+        plt.imshow(pred_rgb)
+
+        plt.subplot(patch_loc[0] * 4, patch_loc[1], patch_loc[1] * patch_loc[0] * 2 + i + 1)
+        plt.imshow(lbb_rgb)
+
+        plt.subplot(patch_loc[0] * 4, patch_loc[1], patch_loc[1] * patch_loc[0] * 3 + i + 1)
+        plt.imshow(d[-1])
+
+    plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
+    plt.tight_layout()
+    plt.savefig(os.path.join(args.pred_2019, '%d_data_pred_label_2019_%d_patch.pdf' % (epoch, idx)))
+    plt.close()
+    return
 
 
 def compute_features_for_comparisonP2(dataloader, model, N, device, args):
