@@ -236,7 +236,7 @@ def main(args):
                                                 pin_memory=True)
 
 
-    dataset_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
+    dataset_2019, label_2019, patch_loc = sampling_echograms_2019_for_comparisonP2()
 
     dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
                                           batch_size=1,

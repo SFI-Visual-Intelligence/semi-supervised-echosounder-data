@@ -58,4 +58,4 @@ def sampling_echograms_2019_for_comparisonP2(echogram_idx=2, path_to_echograms=N
                                           label=label,
                                           label_transform_function=label_transform,
                                           data_transform_function=data_transform)
-    return dataset_2019, patch_loc
+    return dataset_2019, label, patch_loc
