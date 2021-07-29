@@ -24,7 +24,6 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 from scipy.optimize import linear_sum_assignment
 import matplotlib.pyplot as plt
-from deepcluster.confusion_matrix import conf_mat, roc_curve_macro
 
 
 current_dir = os.getcwd()
@@ -35,6 +34,7 @@ current_dir = os.getcwd()
 
 sys.path.append(os.path.join(current_dir, '..', '..', 'deepcluster'))
 
+from confusion_matrix import conf_mat, roc_curve_macro
 import paths
 import clustering
 import models
