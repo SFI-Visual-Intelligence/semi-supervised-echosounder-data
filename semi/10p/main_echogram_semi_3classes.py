@@ -134,7 +134,7 @@ def main(args):
     device = torch.device('cuda:0' if torch.cuda.is_available() else "cpu")
     print(device)
     criterion_pseudo = nn.CrossEntropyLoss()
-    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device=device, dtype=torch.float))
+    criterion_sup = nn.CrossEntropyLoss(ignore_index=-1, weight=torch.Tensor([10, 300, 250]).to(device=device, dtype=torch.double))
 
     # CNN
     if args.verbose:
@@ -151,8 +151,7 @@ def main(args):
     model.cluster_layer = None
     model.category_layer = None
     model.features = torch.nn.DataParallel(model.features)
-    model = model.double()
-    model.to(device)
+    model.to(device, dtype=torch.double)
     cudnn.benchmark = True
 
     if args.optimizer is 'Adam':
@@ -184,8 +183,7 @@ def main(args):
     )
     model.category_layer[0].weight.data.normal_(0, 0.01)
     model.category_layer[0].bias.data.zero_()
-    model.category_layer = model.category_layer.double()
-    model.category_layer.to(device)
+    model.category_layer.to(device, dtype=torch.double)
 
     if args.optimizer is 'Adam':
         print('Adam optimizer: conv')
@@ -351,7 +349,7 @@ def main(args):
         mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
         mlp.append(nn.ReLU(inplace=True).to(device))
         model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device)
+        model.classifier.to(device=device, dtype=torch.double)
 
         '''SELF-SUPERVISION (PSEUDO-LABELS)'''
         model.category_layer = None
@@ -361,8 +359,8 @@ def main(args):
         )
         model.cluster_layer[0].weight.data.normal_(0, 0.01)
         model.cluster_layer[0].bias.data.zero_()
-        model.cluster_layer = model.cluster_layer.double()
-        model.cluster_layer.to(device)
+        # model.cluster_layer = model.cluster_layer.double()
+        model.cluster_layer.to(device=device, dtype=torch.double)
 
         ''' train network with clusters as pseudo-labels '''
         with torch.autograd.set_detect_anomaly(True):
