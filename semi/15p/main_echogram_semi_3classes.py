@@ -377,7 +377,7 @@ def main(args):
             path = os.path.join(
                 args.exp,
                 'checkpoints',
-                'checkpoint_' + str(epoch) + '.pth.tar',
+                str(epoch) + '_checkpoint.pth.tar',
             )
             if args.verbose:
                 print('Save checkpoint at: {0}'.format(path))
@@ -387,6 +387,7 @@ def main(args):
                         'optimizer_body': optimizer_body.state_dict(),
                         'optimizer_category': optimizer_category.state_dict(),
                         }, path)
+            torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'checkpoint', '%d_category_layer.pth.tar'% epoch))
 
         # save running checkpoint
         torch.save({'epoch': epoch,
