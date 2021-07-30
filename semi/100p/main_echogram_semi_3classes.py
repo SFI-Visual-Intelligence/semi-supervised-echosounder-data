@@ -428,7 +428,7 @@ def main(args):
         se_accu, \
         ot_accu = test_analysis(test_pred_large, test_softmax_large, epoch, args)
 
-        if os.path.isfile(os.path.join(args.exp, 'records_te_epoch.pth.tar')):
+        if os.path.isfile(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar')):
             records_te_epoch = torch.load(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
         else:
             records_te_epoch = {'epoch': [],
