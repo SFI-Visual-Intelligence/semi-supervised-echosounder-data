@@ -387,7 +387,7 @@ def main(args):
                         'optimizer_body': optimizer_body.state_dict(),
                         'optimizer_category': optimizer_category.state_dict(),
                         }, path)
-            torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'checkpoint', '%d_category_layer.pth.tar'% epoch))
+            torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'checkpoints', '%d_category_layer.pth.tar'% epoch))
 
         # save running checkpoint
         torch.save({'epoch': epoch,
