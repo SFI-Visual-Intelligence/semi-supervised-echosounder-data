@@ -125,12 +125,16 @@ def test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args,
         dim = np.shape(l)
 
         labels_rgb = np.ones((dim[0], dim[1], 3))
+        seabed = np.where(l == -1)
         sandeel = np.where(l == 1)
         other = np.where(l == 2)
         labels_rgb[sandeel[0], sandeel[1], 0] = 0
         labels_rgb[sandeel[0], sandeel[1], 1] = 0  # sandeel blue
         labels_rgb[other[0], other[1], 1] = 0
         labels_rgb[other[0], other[1], 2] = 0  # other red
+        labels_rgb[seabed[0], seabed[1], 0] = 1
+        labels_rgb[seabed[0], seabed[1], 1] = 1
+        labels_rgb[seabed[0], seabed[1], 2] = 1  # seabed gray 0.7
 
         pred = test_pred_large_2019[i]
         pred_rgb = np.ones((dim[0], dim[1], 3))
@@ -140,6 +144,9 @@ def test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args,
         pred_rgb[pred_sandeel[0], pred_sandeel[1], 1] = 0  # sandeel blue
         pred_rgb[pred_other[0], pred_other[1], 1] = 0
         pred_rgb[pred_other[0], pred_other[1], 2] = 0  # other red
+        pred_rgb[seabed[0], seabed[1], 0] = 1
+        pred_rgb[seabed[0], seabed[1], 1] = 1
+        pred_rgb[seabed[0], seabed[1], 2] = 1  # seabed gray
 
         lbb = test_label_large_2019[i]
         lbb_rgb = np.ones((dim[0], dim[1], 3))
@@ -149,6 +156,10 @@ def test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args,
         lbb_rgb[lbb_sandeel[0], lbb_sandeel[1], 1] = 0  # sandeel blue
         lbb_rgb[lbb_other[0], lbb_other[1], 1] = 0
         lbb_rgb[lbb_other[0], lbb_other[1], 2] = 0  # other red
+        lbb_rgb[seabed[0], seabed[1], 0] = 1
+        lbb_rgb[seabed[0], seabed[1], 1] = 1
+        lbb_rgb[seabed[0], seabed[1], 2] = 1  # seabed gray
+
 
         plt.subplot(patch_loc[0] * 4, patch_loc[1], i + 1)
         plt.imshow(labels_rgb)

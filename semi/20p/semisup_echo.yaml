@@ -14,8 +14,8 @@ spec:
         command: ["python", "main_echogram_semi_3classes.py"]
         resources:
           limits:
-            cpu: "4"
-            memory: 32Gi
+            cpu: "2"
+            memory: 21Gi
         volumeMounts:
         - name: storage
           mountPath: /storage
