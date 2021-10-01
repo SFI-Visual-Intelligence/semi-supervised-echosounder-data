@@ -144,9 +144,9 @@ def test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args,
         pred_rgb[pred_sandeel[0], pred_sandeel[1], 1] = 0  # sandeel blue
         pred_rgb[pred_other[0], pred_other[1], 1] = 0
         pred_rgb[pred_other[0], pred_other[1], 2] = 0  # other red
-        pred_rgb[seabed[0], seabed[1], 0] = 1
-        pred_rgb[seabed[0], seabed[1], 1] = 1
-        pred_rgb[seabed[0], seabed[1], 2] = 1  # seabed gray
+        # pred_rgb[seabed[0], seabed[1], 0] = 1
+        # pred_rgb[seabed[0], seabed[1], 1] = 1
+        # pred_rgb[seabed[0], seabed[1], 2] = 1  # seabed gray
 
         lbb = test_label_large_2019[i]
         lbb_rgb = np.ones((dim[0], dim[1], 3))
