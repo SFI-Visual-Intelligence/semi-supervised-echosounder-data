@@ -57,6 +57,28 @@ def supervised_train_for_comparisonP2(loader, model, crit, opt_body, opt_categor
     supervised_accuracy = sum(supervised_accu_list) / len(supervised_accu_list)
     return supervised_losses.avg, supervised_accuracy
 
+def test_for_comparisonP2_pixel(dataloader, model, device, args):
+    if args.verbose:
+        print('Test')
+    model.eval()
+
+    test_output_save = []
+    test_out_softmax_save = []
+    with torch.no_grad():
+        for i, (input_tensor, _) in enumerate(dataloader):
+            input_tensor = torch.squeeze(input_tensor)
+            input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.double))
+            output = model(input_var)
+            pred_mat = F.softmax(output, dim=1)
+
+            output_argmax = torch.argmax(output, axis=1)
+            test_out_softmax_save.append(pred_mat.data.cpu().numpy())
+            test_output_save.append(output_argmax.data.cpu().numpy())
+
+    test_out_softmax_flat = flatten_list(test_out_softmax_save)
+    output_flat = flatten_list(test_output_save)
+    return output_flat, test_out_softmax_flat
+
 
 def test_for_comparisonP2(dataloader, model, crit, device, args):
     if args.verbose:

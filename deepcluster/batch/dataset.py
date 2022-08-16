@@ -90,6 +90,17 @@ def patch_splitter(sample, after_size=32, before_size=256, step=32, half_idx=0):
         patches = patches[32:]
     return patches
 
+def patch_splitter_pixel(index, sample, out_size, in_size):
+    assert (len(np.shape(sample)) == 3) or (len(np.shape(sample)) == 2), "check input sample (echosounder data or segmentation label)"
+    depth = index // (in_size[1] - out_size)
+    width = index % (in_size[1] - out_size)
+
+    if len(sample.shape) == 3:  # if input is the echosounder data with 4 channel (4, 256, 256)
+        return sample[:, depth:depth+out_size, width:width+out_size]
+    else:
+        return sample[depth:depth+out_size, width:width+out_size]
+
+
 def label_scalar(l_patches, criteria=16):
     l_scalars = []
     for l_patch in l_patches:
@@ -268,7 +279,7 @@ class DatasetImg_for_comparisonP2():
 
     def __getitem__(self, index):
         img_idx = index // 2
-        half_idx = index % 2
+        half_idx = index % 2   # Only to fit into the batch-size. no scientific meaning behind this.
 
         data_sample = self.data[img_idx]
         label_sample = self.label[img_idx]
@@ -289,6 +300,40 @@ class DatasetImg_for_comparisonP2():
 
     def __len__(self):
         return self.n_samples
+
+
+class DatasetImg_for_comparisonP2_pixel():
+    def __init__(self, data,
+                 label,
+                 get_section,
+                 label_transform_function,
+                 data_transform_function):
+        self.data = data
+        self.label = label
+        self.get_section = get_section
+        self.data_transform_function = data_transform_function
+        self.label_transform_function = label_transform_function
+        for i, sec in enumerate(get_section):
+            data_sample = data[sec]
+            label_sample = label[sec]
+            data_sample, label_sample = label_transform_function(data_sample, label_sample)
+            data_sample, label_sample = data_transform_function(data_sample, label_sample)
+            if i == 0:
+                self.data_full = data_sample
+                self.label_full = label_sample
+            else:
+                self.data_full = np.concatenate((self.data_full, data_sample), axis=-1)
+                self.label_full = np.concatenate((self.label_full, label_sample), axis=-1)
+        self.full_size = np.shape(self.label_full)
+        self.out_size = 32
+
+    def __getitem__(self, index):
+        d_patches = patch_splitter_pixel(index, self.data_full, self.out_size, self.full_size)
+        l_patches = patch_splitter_pixel(index, self.label_full, self.out_size, self.full_size)
+        return d_patches, l_patches
+
+    def __len__(self):
+        return (self.full_size[1] - self.out_size + 1) * (self.full_size[0] - self.out_size + 1)
 
 
 class DatasetGrid():
@@ -346,117 +391,3 @@ def get_crop(echogram, center_location, window_size, freqs):
     labels = nearest_interpolation(echogram.label_memmap(), grid, boundary_val=-100, out_shape=window_size)
 
     return channels, labels
-
-# class DatasetSampler():
-#     def __init__(self, sampler, window_size, frequencies):
-#         self.sampler = sampler
-#         self.window_size = window_size
-#         self.frequencies = frequencies
-#
-#     def __getitem__(self, index):
-#         #Select which sampler to use
-#         #Draw coordinate and echogram with sampler
-#         center_locations, echograms = self.sampler.get_all_samples()
-#         #Get data/labels-patches
-#         for i, (echogram, center_location) in enumerate(zip(echograms, center_locations)):
-#             data, _ = get_crop(echogram, center_location, self.window_size, self.frequencies)
-#             yield data
-
-# def sampling_echograms_full(window_size, args):
-#     path_to_echograms = paths.path_to_echograms()
-#     with open(os.path.join(path_to_echograms, 'memmap_2014_heave.pkl'), 'rb') as fp:
-#         eg_names_full = pickle.load(fp)
-#     echograms = get_echograms_full(eg_names_full)
-#     echograms_train, echograms_val, echograms_test = cps.partition_data(echograms, args.partition, portion_train_test=0.8, portion_train_val=0.75)
-#
-#     sampler_bg_train = Background(echograms_train, window_size)
-#     sampler_sh27_train = Shool(echograms_train, window_size, 27)
-#     sampler_sbsh27_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=27)
-#     sampler_sh01_train = Shool(echograms_train, window_size, 1)
-#     sampler_sbsh01_train = ShoolSeabed(echograms_train, window_size, args.window_dim//4, fish_type=1)
-#
-#     samplers_train = [sampler_bg_train,
-#                       sampler_sh27_train, sampler_sbsh27_train,
-#                       sampler_sh01_train, sampler_sbsh01_train]
-#
-#     augmentation = CombineFunctions([add_noise, flip_x_axis])
-#     label_transform = CombineFunctions([index_0_1_27, relabel_with_threshold_morph_close])
-#     data_transform = CombineFunctions([remove_nan_inf, db_with_limits])
-#
-#     dataset_train = Dataset(
-#         samplers_train,
-#         window_size,
-#         args.frequencies,
-#         args.batch * args.iteration_train,
-#         args.sampler_probs,
-#         augmentation_function=augmentation,
-#         label_transform_function=label_transform,
-#         data_transform_function=data_transform)
-#
-#     return dataset_train
-
-# class DatasetVal():
-#
-#     def __init__(self, samplers, window_size, frequencies,
-#                  n_samples = 1000,
-#                  sampler_probs=None,
-#                  augmentation_function=None,
-#                  label_transform_function=None,
-#                  data_transform_function=None):
-#         """
-#         A dataset is used to draw random samples
-#         :param samplers: The samplers used to draw samples
-#         :param window_size: expected window size
-#         :param n_samples:
-#         :param frequencies:
-#         :param sampler_probs:
-#         :param augmentation_function:
-#         :param label_transform_function:
-#         :param data_transform_function:
-#         """
-#
-#         self.samplers = samplers
-#         self.window_size = window_size
-#         self.n_samples = n_samples
-#         self.frequencies = frequencies
-#         self.sampler_probs = sampler_probs
-#         self.augmentation_function = augmentation_function
-#         self.label_transform_function = label_transform_function
-#         self.data_transform_function = data_transform_function
-#
-#         # Normalize sampling probabillities
-#         if self.sampler_probs is None:
-#             self.sampler_probs = np.ones(len(samplers))
-#         self.sampler_probs = np.array(self.sampler_probs)
-#         self.sampler_probs = np.cumsum(self.sampler_probs).astype(float)
-#         self.sampler_probs /= np.max(self.sampler_probs)
-#
-#     def __getitem__(self, index):
-#         #Select which sampler to use
-#         i = np.random.rand()
-#         sample_idx = np.where(i < self.sampler_probs)[0][0]
-#         sampler = self.samplers[sample_idx]
-#
-#         #Draw coordinate and echogram with sampler
-#         center_location, echogram = sampler.get_sample()
-#
-#         #Get data/labels-patches
-#         data, labels = get_crop(echogram, center_location, self.window_size, self.frequencies)
-#
-#         # Apply augmentation
-#         if self.augmentation_function is not None:
-#             data, labels, echogram = self.augmentation_function(data, labels, echogram)
-#
-#         # Apply label-transform-function
-#         if self.label_transform_function is not None:
-#             data, labels, echogram = self.label_transform_function(data, labels, echogram)
-#
-#         # Apply data-transform-function
-#         if self.data_transform_function is not None:
-#             data, labels, echogram, frequencies = self.data_transform_function(data, labels, echogram, self.frequencies)
-#
-#         labels = labels.astype('int16')
-#         return (data, sample_idx)
-#
-#     def __len__(self):
-#         return self.n_samples
