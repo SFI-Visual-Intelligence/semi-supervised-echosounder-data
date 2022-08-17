@@ -61,23 +61,17 @@ def test_for_comparisonP2_pixel(dataloader, model, device, args):
     if args.verbose:
         print('Test')
     model.eval()
-
-    test_output_save = []
-    test_out_softmax_save = []
     with torch.no_grad():
         for i, (input_tensor, _) in enumerate(dataloader):
             input_tensor = torch.squeeze(input_tensor)
             input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.double))
             output = model(input_var)
-            pred_mat = F.softmax(output, dim=1)
-
             output_argmax = torch.argmax(output, axis=1)
-            test_out_softmax_save.append(pred_mat.data.cpu().numpy())
-            test_output_save.append(output_argmax.data.cpu().numpy())
-
-    test_out_softmax_flat = flatten_list(test_out_softmax_save)
-    output_flat = flatten_list(test_output_save)
-    return output_flat, test_out_softmax_flat
+            if i == 0:
+                test_output_save = output_argmax.data.cpu().numpy()
+            else:
+                test_output_save = np.concatenate((test_output_save, output_argmax.data.cpu().numpy()))
+    return test_output_save
 
 
 def test_for_comparisonP2(dataloader, model, crit, device, args):

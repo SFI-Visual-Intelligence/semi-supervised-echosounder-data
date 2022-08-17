@@ -202,48 +202,52 @@ def main(args):
             momentum=args.momentum,
             weight_decay=10 ** args.wd,
         )
-    '''
-    ########################################
-    ########################################
-    Create echogram sampling index
-    ########################################
-    ########################################'''
+    # '''
+    # ########################################
+    # ########################################
+    # Create echogram sampling index
+    # ########################################
+    # ########################################'''
+    #
+    # print('Sample echograms.')
+    # dataset_cp, dataset_semi = sampling_echograms_full_for_comparisonP2(args) # For comparison (paper #2)
+    #
+    # dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
+    #
+    # dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
+    #
+    #
+    # dataset_te = sampling_echograms_test_for_comparisonP2()
+    #
+    # dataloader_test = torch.utils.data.DataLoader(dataset_te,
+    #                                             shuffle=False,
+    #                                             batch_size=args.batch,
+    #                                             num_workers=args.workers,
+    #                                             drop_last=False,
+    #                                             pin_memory=True)
+    #
+    #
+    #
+    # deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
+    #
+    # resume_path = os.path.join(args.exp, '..', '%dp' % int(args.semi_ratio * 100), 'checkpoints')
+    # # resume_path = '/Users/changkyu/Desktop/Springfield_backup/deepcluster_P2/semi/feature_maker_20p/checkpoints'
+    # args.resume = os.path.join(resume_path, '%d_checkpoint.pth.tar' % args.start_epoch)
+    # resume_path = '/storage/Users/changkyu/Desktop/Springfield_backup/deepcluster_P2/semi/feature_maker_20p/checkpoints'
 
-    print('Sample echograms.')
-    dataset_cp, dataset_semi = sampling_echograms_full_for_comparisonP2(args) # For comparison (paper #2)
-
-    dataloader_cp = torch.utils.data.DataLoader(dataset_cp,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-    dataloader_semi = torch.utils.data.DataLoader(dataset_semi,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-
-    dataset_te = sampling_echograms_test_for_comparisonP2()
-
-    dataloader_test = torch.utils.data.DataLoader(dataset_te,
-                                                shuffle=False,
-                                                batch_size=args.batch,
-                                                num_workers=args.workers,
-                                                drop_last=False,
-                                                pin_memory=True)
-
-
-
-    deepcluster = clustering.__dict__[args.clustering](args.nmb_cluster, args.pca)
-
-    resume_path = os.path.join(args.exp, '..', '%dp' % int(args.semi_ratio * 100), 'checkpoints')
-    # resume_path = '/Users/changkyu/Desktop/Springfield_backup/deepcluster_P2/semi/feature_maker_20p/checkpoints'
-    args.resume = os.path.join(resume_path, '%d_checkpoint.pth.tar' % args.start_epoch)
-
+    resume_path = '/storage/p1_results_for_p2/semi%d' % int(100 * args.semi_ratio)
+    args.resume = os.path.join(resume_path, 'checkpoint.pth.tar')
+    category_save = os.path.join(resume_path, 'category_layer.pth.tar')
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -263,7 +267,7 @@ def main(args):
             model.load_state_dict(checkpoint['state_dict'])
             optimizer_body.load_state_dict(checkpoint['optimizer_body'])
             optimizer_category.load_state_dict(checkpoint['optimizer_category'])
-            category_save = os.path.join(resume_path, '%d_category_layer.pth.tar' % args.start_epoch)
+            # category_save = os.path.join(resume_path, '%d_category_layer.pth.tar' % args.start_epoch)
             if os.path.isfile(category_save):
                 if torch.cuda.is_available():
                     category_layer_param = torch.load(category_save)
@@ -274,244 +278,242 @@ def main(args):
                   .format(args.resume, checkpoint['epoch']))
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
-
-    # creating checkpoint repo
-    exp_check = os.path.join(args.exp, 'checkpoints')
-    if not os.path.isdir(exp_check):
-        os.makedirs(exp_check)
-
-    exp_test = os.path.join(args.exp, 'test')
-    for dir_2 in ['2019', 'pred']:
-        dir_to_make = os.path.join(exp_test, dir_2)
-        if not os.path.isdir(dir_to_make):
-            os.makedirs(dir_to_make)
+    #
+    # # creating checkpoint repo
+    # exp_check = os.path.join(args.exp, 'checkpoints')
+    # if not os.path.isdir(exp_check):
+    #     os.makedirs(exp_check)
+    #
+    # exp_test = os.path.join(args.exp, 'test')
+    # for dir_2 in ['2019', 'pred']:
+    #     dir_to_make = os.path.join(exp_test, dir_2)
+    #     if not os.path.isdir(dir_to_make):
+    #         os.makedirs(dir_to_make)
+    #
+    # '''
+    # #######################
+    # #######################
+    # MAIN TRAINING
+    # #######################
+    # #######################'''
+    # for epoch in range(args.start_epoch, args.epochs):
+    #     print('#####################  Start training at Epoch %d ################'% epoch)
+    #     model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
+    #     model.cluster_layer = None
+    #     model.category_layer = None
+    #
+    #     '''
+    #     #######################
+    #     #######################
+    #     PSEUDO-LABEL GENERATION
+    #     #######################
+    #     #######################
+    #     '''
+    #     print('Cluster the features')
+    #     features_train, input_tensors_train, labels_train = compute_features_for_comparisonP2(dataloader_cp, model, len(dataset_cp) * args.for_comparisonP2_batchsize, device=device, args=args)
+    #     clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
+    #
+    #     nan_location = np.isnan(pca_features)
+    #     inf_location = np.isinf(pca_features)
+    #     if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
+    #         print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
+    #         print('Skip epoch ', epoch)
+    #         torch.save(pca_features, 'tr_pca_NaN_%d.pth.tar' % epoch)
+    #         torch.save(features_train, 'tr_feature_NaN_%d.pth.tar' % epoch)
+    #         continue
+    #
+    #     print('Assign pseudo labels')
+    #     size_cluster = np.zeros(len(deepcluster.images_lists))
+    #     for i,  _list in enumerate(deepcluster.images_lists):
+    #         size_cluster[i] = len(_list)
+    #     print('size in clusters: ', size_cluster)
+    #     img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
+    #     train_dataset = clustering.cluster_assign(deepcluster.images_lists,
+    #                                               img_label_pair_train)  # Reassigned pseudolabel
+    #
+    #     # uniformly sample per target
+    #     sampler_train = UnifLabelSampler(int(len(train_dataset)),
+    #                                deepcluster.images_lists)
+    #
+    #     train_dataloader = torch.utils.data.DataLoader(
+    #         train_dataset,
+    #         batch_size=args.for_comparisonP2_batchsize, #args.batch
+    #         shuffle=False,
+    #         num_workers=args.workers,
+    #         sampler=sampler_train,
+    #         pin_memory=True,
+    #     )
+    #
+    #     '''
+    #     ####################################################################
+    #     ####################################################################
+    #     TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
+    #     ####################################################################
+    #     ####################################################################
+    #     '''
+    #     # Recover classifier with ReLU (that is not used in clustering)
+    #     mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
+    #     mlp.append(nn.ReLU(inplace=True).to(device))
+    #     model.classifier = nn.Sequential(*mlp)
+    #     model.classifier.to(device=device, dtype=torch.double)
+    #
+    #     '''SELF-SUPERVISION (PSEUDO-LABELS)'''
+    #     model.category_layer = None
+    #     model.cluster_layer = nn.Sequential(
+    #         nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
+    #         nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
+    #     )
+    #     model.cluster_layer[0].weight.data.normal_(0, 0.01)
+    #     model.cluster_layer[0].bias.data.zero_()
+    #     # model.cluster_layer = model.cluster_layer.double()
+    #     model.cluster_layer.to(device=device, dtype=torch.double)
+    #
+    #     ''' train network with clusters as pseudo-labels '''
+    #     with torch.autograd.set_detect_anomaly(True):
+    #         pseudo_loss, semi_loss, semi_accuracy = semi_train_for_comparisonP2(train_dataloader,
+    #                                                                             dataloader_semi,
+    #                                                                             model, fd,
+    #                                                                             criterion_pseudo,
+    #                                                                             criterion_sup,
+    #                                                                             optimizer_body, optimizer_category,
+    #                                                                             epoch, device=device, args=args)
+    #     # save checkpoint
+    #     if epoch % args.checkpoints == 0:
+    #         path = os.path.join(
+    #             args.exp,
+    #             'checkpoints',
+    #              str(epoch) + '_checkpoint.pth.tar',
+    #         )
+    #         if args.verbose:
+    #             print('Save checkpoint at: {0}'.format(path))
+    #         torch.save({'epoch': epoch,
+    #                     'arch': args.arch,
+    #                     'state_dict': model.state_dict(),
+    #                     'optimizer_body': optimizer_body.state_dict(),
+    #                     'optimizer_category': optimizer_category.state_dict(),
+    #                     }, path)
+    #         torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'checkpoints', '%d_category_layer.pth.tar'% epoch))
+    #
+    #     # save running checkpoint
+    #     torch.save({'epoch': epoch,
+    #                 'arch': args.arch,
+    #                 'state_dict': model.state_dict(),
+    #                 'optimizer_body': optimizer_body.state_dict(),
+    #                 'optimizer_category': optimizer_category.state_dict(),
+    #                 },
+    #                os.path.join(args.exp, 'checkpoint.pth.tar'))
+    #     torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
+    #
+    #     '''
+    #     ##############
+    #     ##############
+    #     # TEST phase
+    #     ##############
+    #     ##############
+    #     '''
+    #     test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion_sup, device, args)
+    #     test_pred_large = rebuild_pred_patch(test_pred)
+    #     test_softmax_large = rebuild_pred_patch(test_pred_softmax)
+    #     test_label_large = rebuild_pred_patch(test_label)
+    #
+    #     '''Save prediction of the test set'''
+    #     if (epoch % args.save_epoch == 0):
+    #         with open(os.path.join(args.exp, 'test', 'pred', 'pred_softmax_label_epoch_%d_te.pickle' % epoch), "wb") as f:
+    #             pickle.dump([test_pred_large, test_softmax_large, test_label_large], f)
+    #
+    #     fpr, \
+    #     tpr, \
+    #     roc_auc, \
+    #     roc_auc_macro, \
+    #     prob_mat, \
+    #     mat, \
+    #     f1_score, \
+    #     kappa, \
+    #     bg_accu, \
+    #     se_accu, \
+    #     ot_accu = test_analysis(test_pred_large, test_softmax_large, epoch, args)
+    #
+    #     if os.path.isfile(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar')):
+    #         records_te_epoch = torch.load(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
+    #     else:
+    #         records_te_epoch = {'epoch': [],
+    #                             'fpr': [],
+    #                             'tpr': [],
+    #                             'roc_auc': [],
+    #                             'roc_auc_macro': [],
+    #                             'prob_mat': [],
+    #                             'mat': [],
+    #                             'f1_score': [],
+    #                             'kappa': [],
+    #                             'BG_accu_epoch': [],
+    #                             'SE_accu_epoch': [],
+    #                             'OT_accu_epoch': [],
+    #                             }
+    #     records_te_epoch['epoch'].append(epoch)
+    #     records_te_epoch['fpr'].append(fpr)
+    #     records_te_epoch['tpr'].append(tpr)
+    #     records_te_epoch['roc_auc'].append(roc_auc)
+    #     records_te_epoch['roc_auc_macro'].append(roc_auc_macro)
+    #     records_te_epoch['prob_mat'].append(prob_mat)
+    #     records_te_epoch['mat'].append(mat)
+    #     records_te_epoch['f1_score'].append(f1_score)
+    #     records_te_epoch['kappa'].append(kappa)
+    #     records_te_epoch['BG_accu_epoch'].append(bg_accu)
+    #     records_te_epoch['SE_accu_epoch'].append(se_accu)
+    #     records_te_epoch['OT_accu_epoch'].append(ot_accu)
+    #     torch.save(records_te_epoch, os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
+    #
+    #     '''
+    #     ##############
+    #     ##############
+    #     # 2019 phase
+    #     ##############
+    #     ##############
+    #     '''
+    #
+    #     for i in [1, 5, 6, 9]: # needs only 4 samples out of 11
+    #         dataset_2019, label_2019, patch_loc = sampling_echograms_2019_for_comparisonP2(echogram_idx=i)
+    #
+    #         dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
+    #                                                       batch_size=1,
+    #                                                       shuffle=False,
+    #                                                       num_workers=args.workers,
+    #                                                       worker_init_fn=np.random.seed,
+    #                                                       drop_last=False,
+    #                                                       pin_memory=True)
+    #
+    #         test_loss_2019, test_accuracy_2019, test_pred_2019, test_label_2019, test_pred_softmax_2019 = test_for_comparisonP2(dataloader_2019, model, criterion_sup, device, args)
+    #         test_pred_large_2019 = rebuild_pred_patch(test_pred_2019)
+    #         test_softmax_large_2019 = rebuild_pred_patch(test_pred_softmax_2019)
+    #         test_label_large_2019 = rebuild_pred_patch(test_label_2019)
+    #
+    #         test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args, idx=i)
 
     '''
-    #######################
-    #######################
-    MAIN TRAINING
-    #######################
-    #######################'''
-    for epoch in range(args.start_epoch, args.epochs):
-        print('#####################  Start training at Epoch %d ################'% epoch)
-        model.classifier = nn.Sequential(*list(model.classifier.children())[:-1]) # remove ReLU at classifier [:-1]
-        model.cluster_layer = None
-        model.category_layer = None
+    ##############
+    ##############
+    # 2019 pixel
+    ##############
+    ##############
+    '''
+    imgidx =  [1, 5, 6, 9]
+    section_idx = [[12, 13, 14, 15 ,16], [29, 30, 31, 32, 33], [21, 22, 23, 24, 25, 26, 27, 28, 29], [14, 15, 16]]
 
-        '''
-        #######################
-        #######################
-        PSEUDO-LABEL GENERATION
-        #######################
-        #######################
-        '''
-        print('Cluster the features')
-        features_train, input_tensors_train, labels_train = compute_features_for_comparisonP2(dataloader_cp, model, len(dataset_cp) * args.for_comparisonP2_batchsize, device=device, args=args)
-        clustering_loss, pca_features = deepcluster.cluster(features_train, verbose=args.verbose)
+    for (img, section) in zip(imgidx, section_idx): # needs only 4 samples out of 11
+        dataset_2019_pixel, label_2019, patch_loc = sampling_echograms_2019_for_comparisonP2_pixel(echogram_idx=img, get_section=section)
+        print('2019 img_idx: %d' % img)
+        dataloader_2019_pixel = torch.utils.data.DataLoader(dataset_2019_pixel,
+                                                      batch_size=32,
+                                                      shuffle=False,
+                                                      num_workers=args.workers,
+                                                      worker_init_fn=np.random.seed,
+                                                      drop_last=False,
+                                                      pin_memory=True)
 
-        nan_location = np.isnan(pca_features)
-        inf_location = np.isinf(pca_features)
-        if (not np.allclose(nan_location, 0)) or (not np.allclose(inf_location, 0)):
-            print('PCA: Feature NaN or Inf found. Nan count: ', np.sum(nan_location), ' Inf count: ', np.sum(inf_location))
-            print('Skip epoch ', epoch)
-            torch.save(pca_features, 'tr_pca_NaN_%d.pth.tar' % epoch)
-            torch.save(features_train, 'tr_feature_NaN_%d.pth.tar' % epoch)
-            continue
+        test_pred_2019_pixel = test_for_comparisonP2_pixel(dataloader_2019_pixel, model, device, args)
+        torch.save(test_pred_2019_pixel, '%d_pred_2019_pixel_%d.tar' % (int(args.semi_ratio * 100), img))
 
-        print('Assign pseudo labels')
-        size_cluster = np.zeros(len(deepcluster.images_lists))
-        for i,  _list in enumerate(deepcluster.images_lists):
-            size_cluster[i] = len(_list)
-        print('size in clusters: ', size_cluster)
-        img_label_pair_train = zip_img_label(input_tensors_train, labels_train)
-        train_dataset = clustering.cluster_assign(deepcluster.images_lists,
-                                                  img_label_pair_train)  # Reassigned pseudolabel
-
-        # uniformly sample per target
-        sampler_train = UnifLabelSampler(int(len(train_dataset)),
-                                   deepcluster.images_lists)
-
-        train_dataloader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=args.for_comparisonP2_batchsize, #args.batch
-            shuffle=False,
-            num_workers=args.workers,
-            sampler=sampler_train,
-            pin_memory=True,
-        )
-
-        '''
-        ####################################################################
-        ####################################################################
-        TRSNSFORM MODEL FOR SELF-SUPERVISION // SEMI-SUPERVISION
-        ####################################################################
-        ####################################################################
-        '''
-        # Recover classifier with ReLU (that is not used in clustering)
-        mlp = list(model.classifier.children()) # classifier that ends with linear(512 * 128). No ReLU at the end
-        mlp.append(nn.ReLU(inplace=True).to(device))
-        model.classifier = nn.Sequential(*mlp)
-        model.classifier.to(device=device, dtype=torch.double)
-
-        '''SELF-SUPERVISION (PSEUDO-LABELS)'''
-        model.category_layer = None
-        model.cluster_layer = nn.Sequential(
-            nn.Linear(fd, args.nmb_cluster),  # nn.Linear(4096, num_cluster),
-            nn.Softmax(dim=1),  # should be removed and replaced by ReLU for category_layer
-        )
-        model.cluster_layer[0].weight.data.normal_(0, 0.01)
-        model.cluster_layer[0].bias.data.zero_()
-        # model.cluster_layer = model.cluster_layer.double()
-        model.cluster_layer.to(device=device, dtype=torch.double)
-
-        ''' train network with clusters as pseudo-labels '''
-        with torch.autograd.set_detect_anomaly(True):
-            pseudo_loss, semi_loss, semi_accuracy = semi_train_for_comparisonP2(train_dataloader,
-                                                                                dataloader_semi,
-                                                                                model, fd,
-                                                                                criterion_pseudo,
-                                                                                criterion_sup,
-                                                                                optimizer_body, optimizer_category,
-                                                                                epoch, device=device, args=args)
-        # save checkpoint
-        if epoch % args.checkpoints == 0:
-            path = os.path.join(
-                args.exp,
-                'checkpoints',
-                 str(epoch) + '_checkpoint.pth.tar',
-            )
-            if args.verbose:
-                print('Save checkpoint at: {0}'.format(path))
-            torch.save({'epoch': epoch,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'optimizer_body': optimizer_body.state_dict(),
-                        'optimizer_category': optimizer_category.state_dict(),
-                        }, path)
-            torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'checkpoints', '%d_category_layer.pth.tar'% epoch))
-
-        # save running checkpoint
-        torch.save({'epoch': epoch,
-                    'arch': args.arch,
-                    'state_dict': model.state_dict(),
-                    'optimizer_body': optimizer_body.state_dict(),
-                    'optimizer_category': optimizer_category.state_dict(),
-                    },
-                   os.path.join(args.exp, 'checkpoint.pth.tar'))
-        torch.save(model.category_layer.state_dict(), os.path.join(args.exp, 'category_layer.pth.tar'))
-
-        '''
-        ##############
-        ##############
-        # TEST phase
-        ##############
-        ##############
-        '''
-        test_loss, test_accuracy, test_pred, test_label, test_pred_softmax = test_for_comparisonP2(dataloader_test, model, criterion_sup, device, args)
-        test_pred_large = rebuild_pred_patch(test_pred)
-        test_softmax_large = rebuild_pred_patch(test_pred_softmax)
-        test_label_large = rebuild_pred_patch(test_label)
-
-        '''Save prediction of the test set'''
-        if (epoch % args.save_epoch == 0):
-            with open(os.path.join(args.exp, 'test', 'pred', 'pred_softmax_label_epoch_%d_te.pickle' % epoch), "wb") as f:
-                pickle.dump([test_pred_large, test_softmax_large, test_label_large], f)
-
-        fpr, \
-        tpr, \
-        roc_auc, \
-        roc_auc_macro, \
-        prob_mat, \
-        mat, \
-        f1_score, \
-        kappa, \
-        bg_accu, \
-        se_accu, \
-        ot_accu = test_analysis(test_pred_large, test_softmax_large, epoch, args)
-
-        if os.path.isfile(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar')):
-            records_te_epoch = torch.load(os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
-        else:
-            records_te_epoch = {'epoch': [],
-                                'fpr': [],
-                                'tpr': [],
-                                'roc_auc': [],
-                                'roc_auc_macro': [],
-                                'prob_mat': [],
-                                'mat': [],
-                                'f1_score': [],
-                                'kappa': [],
-                                'BG_accu_epoch': [],
-                                'SE_accu_epoch': [],
-                                'OT_accu_epoch': [],
-                                }
-        records_te_epoch['epoch'].append(epoch)
-        records_te_epoch['fpr'].append(fpr)
-        records_te_epoch['tpr'].append(tpr)
-        records_te_epoch['roc_auc'].append(roc_auc)
-        records_te_epoch['roc_auc_macro'].append(roc_auc_macro)
-        records_te_epoch['prob_mat'].append(prob_mat)
-        records_te_epoch['mat'].append(mat)
-        records_te_epoch['f1_score'].append(f1_score)
-        records_te_epoch['kappa'].append(kappa)
-        records_te_epoch['BG_accu_epoch'].append(bg_accu)
-        records_te_epoch['SE_accu_epoch'].append(se_accu)
-        records_te_epoch['OT_accu_epoch'].append(ot_accu)
-        torch.save(records_te_epoch, os.path.join(args.exp, 'records_te_epoch_patch.pth.tar'))
-
-        '''
-        ##############
-        ##############
-        # 2019 phase
-        ##############
-        ##############
-        '''
-
-        for i in [1, 5, 6, 9]: # needs only 4 samples out of 11
-            dataset_2019, label_2019, patch_loc = sampling_echograms_2019_for_comparisonP2(echogram_idx=i)
-
-            dataloader_2019 = torch.utils.data.DataLoader(dataset_2019,
-                                                          batch_size=1,
-                                                          shuffle=False,
-                                                          num_workers=args.workers,
-                                                          worker_init_fn=np.random.seed,
-                                                          drop_last=False,
-                                                          pin_memory=True)
-
-            test_loss_2019, test_accuracy_2019, test_pred_2019, test_label_2019, test_pred_softmax_2019 = test_for_comparisonP2(dataloader_2019, model, criterion_sup, device, args)
-            test_pred_large_2019 = rebuild_pred_patch(test_pred_2019)
-            test_softmax_large_2019 = rebuild_pred_patch(test_pred_softmax_2019)
-            test_label_large_2019 = rebuild_pred_patch(test_label_2019)
-
-            test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args, idx=i)
-
-        '''
-        ##############
-        ##############
-        # 2019 pixel
-        ##############
-        ##############
-        '''
-        imgidx =  [1, 5, 6, 9]
-        section_idx = [[12, 13, 14, 15 ,16], [29, 30, 31, 32, 33], [21, 22, 23, 24, 25, 26, 27, 28, 29], [14, 15, 16]]
-
-        for (img, section) in zip(imgidx, section_idx): # needs only 4 samples out of 11
-            dataset_2019_pixel, label_2019, patch_loc = sampling_echograms_2019_for_comparisonP2_pixel(echogram_idx=img, get_section=section)
-
-
-
-            dataloader_2019_pixel = torch.utils.data.DataLoader(dataset_2019_pixel,
-                                                          batch_size=32,
-                                                          shuffle=False,
-                                                          num_workers=args.workers,
-                                                          worker_init_fn=np.random.seed,
-                                                          drop_last=False,
-                                                          pin_memory=True)
-
-            test_pred_2019_pixel, test_pred_softmax_2019_pixel = test_for_comparisonP2_pixel(dataloader_2019_pixel, model, device, args)
-
-
-            test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args, idx=i)
+        # test_and_plot_2019(test_pred_large_2019, test_label_large_2019, epoch, args, idx=i)
 
 
 if __name__ == '__main__':

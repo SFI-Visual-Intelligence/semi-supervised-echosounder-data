@@ -91,7 +91,7 @@ def pixel_img_corner(dataset_2019_pixel, filename):
                            dataset_2019_pixel.full_size[1]//original_wind_size * num_patches,
                            sharex=True, sharey=True,
                            figsize=(dataset_2019_pixel.full_size[1]//original_wind_size * num_patches * 3,
-                                    dataset_2019_pixel.full_size[0]//original_wind_size * num_patches * 3))
+                                    dataset_2019_pixel.full_size[0]//original_wind_size * num_patches * 2 * 3))
     count = 0
     for i in range(len(dataset_2019_pixel)):
         row = i // (dataset_2019_pixel.full_size[1] - dataset_2019_pixel.out_size + 1)

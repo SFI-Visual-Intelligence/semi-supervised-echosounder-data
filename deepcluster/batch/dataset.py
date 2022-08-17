@@ -92,8 +92,8 @@ def patch_splitter(sample, after_size=32, before_size=256, step=32, half_idx=0):
 
 def patch_splitter_pixel(index, sample, out_size, in_size):
     assert (len(np.shape(sample)) == 3) or (len(np.shape(sample)) == 2), "check input sample (echosounder data or segmentation label)"
-    depth = index // (in_size[1] - out_size)
-    width = index % (in_size[1] - out_size)
+    depth = index // (in_size[1] - out_size + 1)
+    width = index % (in_size[1] - out_size + 1)
 
     if len(sample.shape) == 3:  # if input is the echosounder data with 4 channel (4, 256, 256)
         return sample[:, depth:depth+out_size, width:width+out_size]
