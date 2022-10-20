@@ -100,6 +100,20 @@ def patch_splitter_pixel(index, sample, out_size, in_size):
     else:
         return sample[depth:depth+out_size, width:width+out_size]
 
+def label_scalar_single(l_patch, criteria=16):
+    unique = np.unique(l_patch)
+    if np.isin(-1, unique):
+        l_scalar = -1
+    else:
+        l_vec = np.bincount(l_patch.astype(int).reshape(-1), minlength=3)
+        if (l_vec[1] > criteria) or (l_vec[2] > criteria):
+            if l_vec[1] > l_vec[2]:
+                l_scalar = 1
+            else:
+                l_scalar = 2
+        else:
+            l_scalar = 0
+    return np.asarray(l_scalar)
 
 def label_scalar(l_patches, criteria=16):
     l_scalars = []
@@ -302,7 +316,61 @@ class DatasetImg_for_comparisonP2():
         return self.n_samples
 
 
-class DatasetImg_for_comparisonP2_pixel():
+class DatasetImg_for_comparisonP2_pixel_test():
+    def __init__(self, data,
+                 label,
+                 stride,
+                 label_transform_function,
+                 data_transform_function):
+        self.data_transform_function = data_transform_function
+        self.label_transform_function = label_transform_function
+        self.stride = stride
+        self.kernel = 32
+        self.max_idx = 224
+        self.num_256_patches = len(label)
+        self.data = []
+        self.label = []
+        for i in range(len(data)):
+            data_filt, label_filt =  self.label_transform_function(data[i], label[i])
+            data_filt, label_filt = self.data_transform_function(data_filt, label_filt)
+            self.data.append(data_filt)
+            self.label.append(label_filt)
+
+    def __getitem__(self, index):
+        patch_idx = index // (((self.max_idx // self.stride) +1)**2)
+        row_and_col = index % (((self.max_idx // self.stride) +1) **2)
+        row_idx = row_and_col // ((self.max_idx // self.stride) +1)
+        col_idx = row_and_col % ((self.max_idx // self.stride) +1)
+        data_sample = self.data[patch_idx][:, row_idx*self.stride: row_idx*self.stride + self.kernel, col_idx*self.stride: col_idx*self.stride+self.kernel]
+        label_sample = self.label[patch_idx][row_idx*self.stride: row_idx*self.stride + self.kernel, col_idx*self.stride: col_idx*self.stride+self.kernel]
+
+        l_scalar = label_scalar_single(label_sample)
+        return data_sample, l_scalar
+
+    def __len__(self):
+        return self.num_256_patches * ((self.max_idx // self.stride) +1) **2
+
+def patch_cal(label_patch, stride, kernel_size=32):
+    len = np.shape(label_patch)[0]
+    patch_wind = np.shape(label_patch)[2]
+    return len * ((patch_wind - kernel_size)//stride + 1) **2
+
+def index_check(index, data_patch, label_patch, stride, kernel_size=32):
+    total_lenn = patch_cal(label_patch, stride, kernel_size)
+    max_idx = 224
+    kernel = 32
+    patch_idx = index // (((max_idx // stride) + 1) ** 2)
+    row_and_col = index % (((max_idx // stride) + 1) ** 2)
+    row_idx = row_and_col // ((max_idx // stride) + 1)
+    col_idx = row_and_col % ((max_idx // stride) + 1)
+    print(total_lenn, patch_idx, row_idx, col_idx)
+    data_sample = data_patch[patch_idx][:][row_idx * stride: row_idx * stride + kernel, col_idx * stride: col_idx * stride + kernel]
+    label_sample = label_patch[patch_idx][row_idx * stride: row_idx * stride + kernel, col_idx * stride: col_idx * stride + kernel]
+    return data_sample, label_sample
+
+
+
+class DatasetImg_for_comparisonP2_pixel_2019():
     def __init__(self, data,
                  label,
                  get_section,

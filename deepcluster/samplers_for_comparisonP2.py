@@ -11,7 +11,7 @@ from batch.combine_functions import CombineFunctions
 from batch.label_transform_functions.index_0_1_27_for_comparisonP2 import index_0_1_27_for_comparisonP2
 from batch.label_transform_functions.relabel_with_threshold_morph_close_for_comparisonP2 import relabel_with_threshold_morph_close_for_comparisonP2
 from batch.label_transform_functions.seabed_checker_for_comparisonP2 import seabed_checker_for_comparisonP2
-from batch.dataset import DatasetImg_for_comparisonP2, DatasetImg_for_comparisonP2_pixel
+from batch.dataset import DatasetImg_for_comparisonP2, DatasetImg_for_comparisonP2_pixel_test,  DatasetImg_for_comparisonP2_pixel_2019
 
 
 def sampling_echograms_full_for_comparisonP2(args):
@@ -49,6 +49,26 @@ def sampling_echograms_test_for_comparisonP2():
                                           data_transform_function=data_transform)
     return dataset
 
+def sampling_echograms_test_for_comparisonP2_pixel(stride):
+    path_to_echograms = paths.path_to_echograms()
+    data = torch.load(os.path.join(path_to_echograms, 'data_te_TEST_60.pt'))
+    label = torch.load(os.path.join(path_to_echograms, 'label_te_TEST_60.pt'))
+    data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
+    label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
+
+    dataset = DatasetImg_for_comparisonP2_pixel_test(data=data,
+                                          label=label,
+                                          stride=stride,
+                                          label_transform_function=label_transform,
+                                          data_transform_function=data_transform)
+    return dataset
+
+
+
+
+
+
+
 
 def sampling_echograms_2019_for_comparisonP2(echogram_idx=2, path_to_echograms=None):
     if path_to_echograms == None:
@@ -72,7 +92,7 @@ def sampling_echograms_2019_for_comparisonP2_pixel(echogram_idx, get_section, pa
     data_transform = CombineFunctions([remove_nan_inf_for_comparisonP2, db_with_limits_for_comparisonP2])
     label_transform = CombineFunctions([index_0_1_27_for_comparisonP2, relabel_with_threshold_morph_close_for_comparisonP2, seabed_checker_for_comparisonP2])
 
-    dataset_2019_pixel = DatasetImg_for_comparisonP2_pixel(data=data,
+    dataset_2019_pixel = DatasetImg_for_comparisonP2_pixel_2019(data=data,
                                                            label=label,
                                                            get_section=get_section,
                                                            label_transform_function=label_transform,

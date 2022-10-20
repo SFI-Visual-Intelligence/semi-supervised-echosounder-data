@@ -63,7 +63,7 @@ def test_for_comparisonP2_pixel(dataloader, model, device, args):
     model.eval()
     with torch.no_grad():
         for i, (input_tensor, _) in enumerate(dataloader):
-            input_tensor = torch.squeeze(input_tensor)
+            # input_tensor = torch.squeeze(input_tensor)
             input_var = torch.autograd.Variable(input_tensor.to(device=device, dtype=torch.double))
             output = model(input_var)
             output_argmax = torch.argmax(output, axis=1)
