@@ -1,0 +1,27 @@
+kind: Job
+apiVersion: batch/v1
+
+metadata:
+  name: semipatch-100p-feature
+
+spec:
+  template:
+    spec:
+      containers:
+      - name: semipatch-100p-feature
+        image: "basscoma/deepclustering:gpu0.9"
+        workingDir: /storage/deepcluster_P2/semi_p2rev2_pixel/100p
+        command: ["python", "main.py"]
+        resources:
+          limits:
+            cpu: "2"
+            memory: 21Gi
+        volumeMounts:
+        - name: storage
+          mountPath: /storage
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: storage
+      restartPolicy: OnFailure
+  backoffLimit: 0
